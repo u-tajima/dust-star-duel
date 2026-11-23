@@ -26,18 +26,45 @@ export interface SpringBarrel {
   bounceTimer: number;
 }
 
+export interface TntBarrel {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  alive: boolean;
+  respawnTimer: number;
+  hitFlash: number;
+}
+
+export interface WeaponCrate {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  alive: boolean;
+  respawnTimer: number;
+  bobPhase: number;
+}
+
 export interface StageDef {
   id: string;
   name: string;
   platforms: Omit<Platform, 'baseX' | 'baseY'>[];
   springs: Omit<SpringBarrel, 'bounceTimer'>[];
-  starSpawns: Vec2[];
+  tnts: Vec2[];
+  crates: Vec2[];
+  goldSpawns: Vec2[];
   coinSpawns: Vec2[];
   p1Spawn: Vec2;
   p2Spawn: Vec2;
 }
 
-export type PowerUpType = 'none' | 'spread' | 'rapid' | 'spurs';
+export type WeaponType = 'revolver' | 'shotgun' | 'dynamite' | 'sniper';
+
+export interface MatchRules {
+  targetGold: number;
+  maxLives: number; // 0 = infinite
+}
 
 export interface Fighter {
   id: 'p1' | 'p2';
@@ -54,10 +81,16 @@ export interface Fighter {
   shootCooldown: number;
   invulnTimer: number;
   stunTimer: number;
-  stars: number;
+  respawnTimer: number;
+  hp: number;
+  maxHp: number;
+  lives: number; // -1 when infinite
+  gold: number;
   coins: number;
-  powerUp: PowerUpType;
-  powerTimer: number;
+  weapon: WeaponType;
+  weaponTimer: number;
+  armorHits: number;
+  armorTimer: number;
   animTime: number;
   squashX: number;
   squashY: number;
@@ -65,7 +98,8 @@ export interface Fighter {
   shootPoseTimer: number;
 }
 
-export interface Bullet {
+export interface Projectile {
+  kind: 'bullet' | 'sniper' | 'dynamite';
   owner: 'p1' | 'p2';
   x: number;
   y: number;
@@ -73,9 +107,20 @@ export interface Bullet {
   vy: number;
   life: number;
   radius: number;
+  damage: number;
+  knockback: number;
+  spin: number;
 }
 
-export interface StarItem {
+export interface Explosion {
+  x: number;
+  y: number;
+  radius: number;
+  life: number;
+  maxLife: number;
+}
+
+export interface GoldItem {
   x: number;
   y: number;
   vx: number;
@@ -102,7 +147,7 @@ export interface Particle {
   size: number;
   life: number;
   maxLife: number;
-  kind: 'dust' | 'spark' | 'star' | 'smoke';
+  kind: 'dust' | 'spark' | 'gold' | 'smoke' | 'fire';
   color: string;
 }
 

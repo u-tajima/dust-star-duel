@@ -2,8 +2,8 @@ import './style.css';
 import { sound } from './audio';
 import { GameEngine } from './game';
 import { SketchRenderer } from './renderer';
-import { COINS_FOR_POWERUP, VIEW_H, VIEW_W, WIN_STARS } from './stages';
-import type { InputState } from './types';
+import { VIEW_H, VIEW_W } from './stages';
+import type { InputState, MatchRules } from './types';
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -13,11 +13,15 @@ const overlayResult = document.getElementById('overlay-result')!;
 const resultTitle = document.getElementById('result-title')!;
 const resultScore = document.getElementById('result-score')!;
 const resultEmblem = document.getElementById('result-emblem')!;
-const p1StarsEl = document.getElementById('p1-stars')!;
-const p2StarsEl = document.getElementById('p2-stars')!;
-const p1CoinsEl = document.getElementById('p1-coins')!;
-const p2CoinsEl = document.getElementById('p2-coins')!;
+const p1GoldEl = document.getElementById('p1-gold')!;
+const p2GoldEl = document.getElementById('p2-gold')!;
+const p1LivesEl = document.getElementById('p1-lives')!;
+const p2LivesEl = document.getElementById('p2-lives')!;
+const p1GearEl = document.getElementById('p1-gear')!;
+const p2GearEl = document.getElementById('p2-gear')!;
 const stagePicker = document.getElementById('stage-picker')!;
+const goldPicker = document.getElementById('gold-picker')!;
+const livesPicker = document.getElementById('lives-picker')!;
 const btnStart = document.getElementById('btn-start')!;
 const btnRematch = document.getElementById('btn-rematch')!;
 const btnToTitle = document.getElementById('btn-to-title')!;
@@ -27,6 +31,7 @@ const iconSoundOn = document.getElementById('icon-sound-on')!;
 const iconSoundOff = document.getElementById('icon-sound-off')!;
 const controllerDeck = document.getElementById('controller-deck')!;
 
+const selectedRules: MatchRules = { targetGold: 5, maxLives: 3 };
 const game = new GameEngine();
 const renderer = new SketchRenderer();
 
@@ -211,13 +216,31 @@ window.addEventListener('mouseup', () => {
   syncButtonVisuals();
 });
 
-// Stage picker
+// Stage / Gold / Lives pickers
 stagePicker.addEventListener('click', (e) => {
   const target = (e.target as HTMLElement).closest<HTMLButtonElement>('.stage-chip');
   if (!target) return;
   const idx = Number(target.dataset.stage || '0');
   game.loadStage(idx);
   stagePicker.querySelectorAll('.stage-chip').forEach((chip) => {
+    chip.classList.toggle('active', chip === target);
+  });
+});
+
+goldPicker.addEventListener('click', (e) => {
+  const target = (e.target as HTMLElement).closest<HTMLButtonElement>('.mini-chip');
+  if (!target) return;
+  selectedRules.targetGold = Number(target.dataset.gold || '5');
+  goldPicker.querySelectorAll('.mini-chip').forEach((chip) => {
+    chip.classList.toggle('active', chip === target);
+  });
+});
+
+livesPicker.addEventListener('click', (e) => {
+  const target = (e.target as HTMLElement).closest<HTMLButtonElement>('.mini-chip');
+  if (!target) return;
+  selectedRules.maxLives = Number(target.dataset.lives || '3');
+  livesPicker.querySelectorAll('.mini-chip').forEach((chip) => {
     chip.classList.toggle('active', chip === target);
   });
 });
@@ -235,7 +258,7 @@ function showTitle(): void {
 function startDuel(): void {
   clearAllInputs();
   sound.unlock();
-  game.startMatch(game.stageIndex);
+  game.startMatch(game.stageIndex, selectedRules);
   overlayTitle.classList.add('hidden');
   overlayResult.classList.add('hidden');
   controllerDeck.classList.remove('hidden');
@@ -253,39 +276,49 @@ btnMute.addEventListener('click', () => {
   iconSoundOff.classList.toggle('hidden', !sound.muted);
 });
 
-// HUD SVG helpers (zero Unicode emoji)
-function starSvg(filled: boolean, color: string): string {
-  const fill = filled ? color : 'rgba(43, 32, 22, 0.12)';
-  return `<span class="star-slot"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.3 6.1 20.5l1.2-6.5-4.8-4.6 6.6-.9L12 2.5z" fill="${fill}" stroke="#2b2016" stroke-width="1.8" stroke-linejoin="round"/></svg></span>`;
+const GOLD_ICON = `<svg viewBox="0 0 24 18" width="16" height="12"><path d="M2 15L6 4h12l4 11z" fill="#f2be3d" stroke="#2b2016" stroke-width="1.8" stroke-linejoin="round"/><path d="M6 4h12l-1.5 4h-9z" fill="#ffe188" stroke="#2b2016" stroke-width="1.2"/></svg>`;
+const HAT_ICON = `<svg viewBox="0 0 24 16" width="14" height="10"><path d="M2 12q10 2 20 0l-3-2H5z" fill="#5c3c22" stroke="#2b2016" stroke-width="1.5"/><path d="M7 10l1.5-7h7L17 10z" fill="#5c3c22" stroke="#2b2016" stroke-width="1.5"/></svg>`;
+
+function gearLabel(weapon: string, armorHits: number): string {
+  if (armorHits > 0) return 'SHIELD';
+  if (weapon === 'shotgun') return 'SHOTGUN';
+  if (weapon === 'dynamite') return 'DYNAMITE';
+  if (weapon === 'sniper') return 'SNIPER';
+  return '';
 }
 
 let lastHudSig = '';
 function syncHUD(force = false): void {
   const [p1, p2] = game.fighters;
-  const sig = `${p1.stars}-${p1.coins}-${p2.stars}-${p2.coins}-${game.mode}`;
+  const sig = `${p1.gold}/${game.rules.targetGold}-${p1.lives}-${p1.weapon}-${p1.armorHits}|${p2.gold}-${p2.lives}-${p2.weapon}-${p2.armorHits}|${game.mode}`;
   if (!force && sig === lastHudSig) return;
   lastHudSig = sig;
 
-  p1StarsEl.innerHTML = Array.from({ length: WIN_STARS }, (_, i) =>
-    starSvg(i < p1.stars, '#e8aa2a')
-  ).join('');
-  p2StarsEl.innerHTML = Array.from({ length: WIN_STARS }, (_, i) =>
-    starSvg(i < p2.stars, '#e8aa2a')
-  ).join('');
+  p1GoldEl.innerHTML = `${GOLD_ICON}<span>${p1.gold}/${game.rules.targetGold}</span>`;
+  p2GoldEl.innerHTML = `<span>${p2.gold}/${game.rules.targetGold}</span>${GOLD_ICON}`;
 
-  p1CoinsEl.innerHTML = Array.from({ length: COINS_FOR_POWERUP }, (_, i) =>
-    `<span class="coin-pip${i < p1.coins ? ' filled' : ''}"></span>`
-  ).join('');
-  p2CoinsEl.innerHTML = Array.from({ length: COINS_FOR_POWERUP }, (_, i) =>
-    `<span class="coin-pip${i < p2.coins ? ' filled' : ''}"></span>`
-  ).join('');
+  const p1LifeTxt = p1.lives < 0 ? '∞' : `${p1.lives}`;
+  const p2LifeTxt = p2.lives < 0 ? '∞' : `${p2.lives}`;
+  p1LivesEl.innerHTML = `${HAT_ICON}<span>${p1LifeTxt}</span>`;
+  p2LivesEl.innerHTML = `<span>${p2LifeTxt}</span>${HAT_ICON}`;
+
+  const g1 = gearLabel(p1.weapon, p1.armorHits);
+  p1GearEl.textContent = g1;
+  p1GearEl.classList.toggle('hidden', !g1);
+
+  const g2 = gearLabel(p2.weapon, p2.armorHits);
+  p2GearEl.textContent = g2;
+  p2GearEl.classList.toggle('hidden', !g2);
 
   if (game.mode === 'result' && overlayResult.classList.contains('hidden')) {
     const won = game.winner === 'p1';
     resultTitle.textContent = won ? 'VICTORY' : 'DEFEAT';
-    resultScore.textContent = `${p1.stars} - ${p2.stars}`;
-    resultEmblem.innerHTML = `<svg viewBox="0 0 48 48" width="52" height="52"><path d="M24 4l5.8 12 13.2 1.8-9.6 9.2 2.4 13L24 33.8 12.2 40l2.4-13-9.6-9.2L18.2 16 24 4z" fill="${
-      won ? '#e8aa2a' : '#354f70'
+    resultScore.textContent =
+      game.winReason === 'ko'
+        ? `KO  (${p1.gold} - ${p2.gold})`
+        : `${p1.gold} - ${p2.gold}`;
+    resultEmblem.innerHTML = `<svg viewBox="0 0 48 36" width="56" height="42"><path d="M4 30L12 8h24l8 22z" fill="${
+      won ? '#f2be3d' : '#354f70'
     }" stroke="#2b2016" stroke-width="2.5" stroke-linejoin="round"/></svg>`;
     overlayResult.classList.remove('hidden');
     controllerDeck.classList.add('hidden');

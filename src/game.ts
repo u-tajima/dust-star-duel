@@ -1,16 +1,19 @@
 import { sound } from './audio';
-import { COINS_FOR_POWERUP, STAGES, VIEW_H, VIEW_W, WIN_STARS, WORLD_H, WORLD_W } from './stages';
+import { COINS_FOR_GEAR, MAX_HP, STAGES, VIEW_H, VIEW_W, WORLD_H, WORLD_W } from './stages';
 import type {
-  Bullet,
   CoinItem,
+  Explosion,
   Fighter,
   GameMode,
+  GoldItem,
   InputState,
+  MatchRules,
   Particle,
   Platform,
-  PowerUpType,
+  Projectile,
   SpringBarrel,
-  StarItem,
+  TntBarrel,
+  WeaponCrate,
 } from './types';
 
 const GRAVITY = 1480;
@@ -20,8 +23,8 @@ const GROUND_ACCEL = 2500;
 const AIR_ACCEL = 1850;
 const FRICTION = 2200;
 const JUMP_VEL = 575;
-const SPURS_JUMP_VEL = 680;
 const BULLET_SPEED = 560;
+const SNIPER_SPEED = 900;
 
 export function wrapX(x: number): number {
   let r = x % WORLD_W;
@@ -39,11 +42,13 @@ export function wrapDeltaX(from: number, to: number): number {
 export class GameEngine {
   public mode: GameMode = 'title';
   public stageIndex = 0;
+  public rules: MatchRules = { targetGold: 5, maxLives: 3 };
   public time = 0;
   public hitstop = 0;
   public shakeTimer = 0;
   public shakePower = 0;
   public winner: 'p1' | 'p2' | null = null;
+  public winReason: 'gold' | 'ko' = 'gold';
 
   // Player-centered scrolling camera (DS Mario vs Luigi style)
   public camX = 0;
@@ -51,15 +56,18 @@ export class GameEngine {
 
   public platforms: Platform[] = [];
   public springs: SpringBarrel[] = [];
+  public tnts: TntBarrel[] = [];
+  public crates: WeaponCrate[] = [];
   public fighters: [Fighter, Fighter];
-  public bullets: Bullet[] = [];
-  public stars: StarItem[] = [];
+  public projectiles: Projectile[] = [];
+  public explosions: Explosion[] = [];
+  public golds: GoldItem[] = [];
   public coins: CoinItem[] = [];
   public particles: Particle[] = [];
 
-  private starRespawnTimer = 0;
+  private goldRespawnTimer = 0;
   private coinRespawnTimer = 0;
-  private lastStarSpawnIdx = -1;
+  private lastGoldSpawnIdx = -1;
   private aiDecisionTimer = 0;
   private aiJumpHold = 0;
 
@@ -84,16 +92,29 @@ export class GameEngine {
       shootCooldown: 0,
       invulnTimer: 0,
       stunTimer: 0,
-      stars: 0,
+      respawnTimer: 0,
+      hp: MAX_HP,
+      maxHp: MAX_HP,
+      lives: this.rules.maxLives === 0 ? -1 : this.rules.maxLives,
+      gold: 0,
       coins: 0,
-      powerUp: 'none',
-      powerTimer: 0,
+      weapon: 'revolver',
+      weaponTimer: 0,
+      armorHits: 0,
+      armorTimer: 0,
       animTime: 0,
       squashX: 1,
       squashY: 1,
       muzzleTimer: 0,
       shootPoseTimer: 0,
     };
+  }
+
+  public getWantedId(): 'p1' | 'p2' | null {
+    const [p1, p2] = this.fighters;
+    if (p1.gold >= 2 && p1.gold > p2.gold) return 'p1';
+    if (p2.gold >= 2 && p2.gold > p1.gold) return 'p2';
+    return null;
   }
 
   public loadStage(index: number): void {
@@ -109,14 +130,33 @@ export class GameEngine {
       ...s,
       bounceTimer: 0,
     }));
+    this.tnts = def.tnts.map((pt) => ({
+      x: pt.x - 16,
+      y: pt.y - 34,
+      w: 32,
+      h: 34,
+      alive: true,
+      respawnTimer: 0,
+      hitFlash: 0,
+    }));
+    this.crates = def.crates.map((pt, i) => ({
+      x: pt.x - 16,
+      y: pt.y - 32,
+      w: 32,
+      h: 32,
+      alive: true,
+      respawnTimer: 0,
+      bobPhase: i * 1.4,
+    }));
 
     this.fighters = [
       this.createFighter('p1', def.p1Spawn.x, def.p1Spawn.y),
       this.createFighter('p2', def.p2Spawn.x, def.p2Spawn.y),
     ];
 
-    this.bullets = [];
-    this.stars = [];
+    this.projectiles = [];
+    this.explosions = [];
+    this.golds = [];
     this.particles = [];
     this.coins = def.coinSpawns.map((c, idx) => ({
       x: c.x,
@@ -129,48 +169,48 @@ export class GameEngine {
     this.hitstop = 0;
     this.shakeTimer = 0;
     this.winner = null;
-    this.starRespawnTimer = 0.5;
+    this.winReason = 'gold';
+    this.goldRespawnTimer = 0.5;
     this.coinRespawnTimer = 0;
-    this.lastStarSpawnIdx = -1;
+    this.lastGoldSpawnIdx = -1;
 
-    // Snap camera to P1
     this.camX = wrapX(this.fighters[0].x - VIEW_W * 0.5);
     this.camY = Math.max(0, Math.min(WORLD_H - VIEW_H, this.fighters[0].y - VIEW_H * 0.58));
   }
 
-  public startMatch(stageIdx = this.stageIndex): void {
+  public startMatch(stageIdx = this.stageIndex, rules: MatchRules = this.rules): void {
+    this.rules = { ...rules };
     this.loadStage(stageIdx);
     this.mode = 'playing';
-    this.spawnMainStar();
+    this.spawnMainGold();
   }
 
-  private spawnMainStar(): void {
+  private spawnMainGold(): void {
     const def = STAGES[this.stageIndex];
-    let idx = Math.floor(Math.random() * def.starSpawns.length);
-    if (idx === this.lastStarSpawnIdx && def.starSpawns.length > 1) {
-      idx = (idx + 1) % def.starSpawns.length;
+    let idx = Math.floor(Math.random() * def.goldSpawns.length);
+    if (idx === this.lastGoldSpawnIdx && def.goldSpawns.length > 1) {
+      idx = (idx + 1) % def.goldSpawns.length;
     }
-    this.lastStarSpawnIdx = idx;
-    const pt = def.starSpawns[idx];
-    this.stars.push({
+    this.lastGoldSpawnIdx = idx;
+    const pt = def.goldSpawns[idx];
+    this.golds.push({
       x: pt.x,
       y: pt.y,
       vx: 0,
       vy: 0,
-      radius: 15,
+      radius: 16,
       dropped: false,
       pickupDelay: 0,
       bobPhase: 0,
       life: 999,
     });
-    this.burstParticles(pt.x, pt.y, 12, 'star', '#e6a82e');
+    this.burstParticles(pt.x, pt.y, 12, 'gold', '#e6a82e');
   }
 
   public update(dt: number, p1Input: InputState): void {
     const clampedDt = Math.min(dt, 0.04);
 
     if (this.mode !== 'playing') {
-      // Gentle attract camera pan on title
       this.time += clampedDt;
       if (this.mode === 'title') {
         this.camX = wrapX(this.camX + clampedDt * 24);
@@ -189,7 +229,7 @@ export class GameEngine {
     this.time += clampedDt;
     this.shakeTimer = Math.max(0, this.shakeTimer - clampedDt);
 
-    // 1. Update moving platforms
+    // 1. Update moving platforms & stage props
     for (const p of this.platforms) {
       if (p.moveAxis === 'x' && p.moveRange && p.moveSpeed) {
         p.x = wrapX(p.baseX + Math.sin(this.time * p.moveSpeed) * p.moveRange);
@@ -202,6 +242,28 @@ export class GameEngine {
       if (s.bounceTimer > 0) s.bounceTimer = Math.max(0, s.bounceTimer - clampedDt);
     }
 
+    for (const t of this.tnts) {
+      if (t.hitFlash > 0) t.hitFlash = Math.max(0, t.hitFlash - clampedDt);
+      if (!t.alive) {
+        t.respawnTimer -= clampedDt;
+        if (t.respawnTimer <= 0) {
+          t.alive = true;
+          this.burstParticles(t.x + t.w * 0.5, t.y + t.h * 0.5, 6, 'smoke', '#b89f74');
+        }
+      }
+    }
+
+    for (const c of this.crates) {
+      c.bobPhase += clampedDt * 3;
+      if (!c.alive) {
+        c.respawnTimer -= clampedDt;
+        if (c.respawnTimer <= 0) {
+          c.alive = true;
+          this.burstParticles(c.x + c.w * 0.5, c.y + c.h * 0.5, 6, 'gold', '#e8aa2a');
+        }
+      }
+    }
+
     // 2. Compute AI input for P2
     const p2Input = this.computeAI(clampedDt);
 
@@ -212,17 +274,19 @@ export class GameEngine {
     // 4. Fighter vs Fighter stomp & bump
     this.resolveFighterDuel();
 
-    // 5. Update bullets
-    this.updateBullets(clampedDt);
+    // 5. Update projectiles & explosions
+    this.updateProjectiles(clampedDt);
+    this.updateExplosions(clampedDt);
 
-    // 6. Update stars & coins
-    this.updateStars(clampedDt);
+    // 6. Update golds, crates, & coins
+    this.updateGolds(clampedDt);
+    this.updateCrates();
     this.updateCoins(clampedDt);
 
     // 7. Update particles
     this.updateParticles(clampedDt);
 
-    // 8. Smoothly follow Player 1 with slight look-ahead
+    // 8. Smoothly follow Player 1
     const p1 = this.fighters[0];
     const targetCamX = wrapX(p1.x + p1.facing * 42 - VIEW_W * 0.5);
     const camDx = wrapDeltaX(this.camX, targetCamX);
@@ -234,6 +298,25 @@ export class GameEngine {
 
   private updateFighter(f: Fighter, input: InputState, dt: number): void {
     f.animTime += dt;
+
+    // Handle KO respawn countdown
+    if (f.respawnTimer > 0) {
+      f.respawnTimer = Math.max(0, f.respawnTimer - dt);
+      if (f.respawnTimer === 0) {
+        const def = STAGES[this.stageIndex];
+        const sp = f.id === 'p1' ? def.p1Spawn : def.p2Spawn;
+        f.x = sp.x;
+        f.y = sp.y - 36;
+        f.vx = 0;
+        f.vy = 0;
+        f.hp = f.maxHp;
+        f.invulnTimer = 1.8;
+        f.stunTimer = 0;
+        this.burstParticles(f.x, f.y, 10, 'dust', '#d4b885');
+      }
+      return;
+    }
+
     f.squashX += (1 - f.squashX) * Math.min(1, dt * 14);
     f.squashY += (1 - f.squashY) * Math.min(1, dt * 14);
 
@@ -242,9 +325,14 @@ export class GameEngine {
     if (f.stunTimer > 0) f.stunTimer = Math.max(0, f.stunTimer - dt);
     if (f.muzzleTimer > 0) f.muzzleTimer = Math.max(0, f.muzzleTimer - dt);
     if (f.shootPoseTimer > 0) f.shootPoseTimer = Math.max(0, f.shootPoseTimer - dt);
-    if (f.powerTimer > 0) {
-      f.powerTimer = Math.max(0, f.powerTimer - dt);
-      if (f.powerTimer === 0) f.powerUp = 'none';
+
+    if (f.weaponTimer > 0) {
+      f.weaponTimer = Math.max(0, f.weaponTimer - dt);
+      if (f.weaponTimer === 0) f.weapon = 'revolver';
+    }
+    if (f.armorTimer > 0) {
+      f.armorTimer = Math.max(0, f.armorTimer - dt);
+      if (f.armorTimer === 0) f.armorHits = 0;
     }
 
     if (f.onGround) {
@@ -259,7 +347,6 @@ export class GameEngine {
       f.jumpBufferTimer = Math.max(0, f.jumpBufferTimer - dt);
     }
 
-    // Horizontal movement
     if (f.stunTimer <= 0) {
       const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
       if (dir !== 0) {
@@ -278,10 +365,8 @@ export class GameEngine {
         }
       }
 
-      // Jump with coyote + buffer
       if (f.jumpBufferTimer > 0 && f.coyoteTimer > 0) {
-        const jumpPower = f.powerUp === 'spurs' ? SPURS_JUMP_VEL : JUMP_VEL;
-        f.vy = -jumpPower;
+        f.vy = -JUMP_VEL;
         f.onGround = false;
         f.coyoteTimer = 0;
         f.jumpBufferTimer = 0;
@@ -291,12 +376,10 @@ export class GameEngine {
         this.burstParticles(f.x, f.y + f.h * 0.5, 5, 'dust', '#b89f74');
       }
 
-      // Variable jump cut
       if (!input.jump && f.vy < -220) {
         f.vy *= 0.86;
       }
 
-      // Shoot revolver
       if (input.shoot && f.shootCooldown <= 0) {
         this.fireWeapon(f);
       }
@@ -304,22 +387,17 @@ export class GameEngine {
       f.vx *= Math.pow(0.25, dt);
     }
 
-    // Gravity
     f.vy = Math.min(MAX_FALL, f.vy + GRAVITY * dt);
-
     const prevBottom = f.y + f.h * 0.5;
 
-    // Integrate & wrap X
     f.x = wrapX(f.x + f.vx * dt);
     f.y += f.vy * dt;
 
-    // Vertical ceiling clamp
     if (f.y - f.h * 0.5 < 16) {
       f.y = 16 + f.h * 0.5;
       if (f.vy < 0) f.vy = 0;
     }
 
-    // Platform landing collisions
     const wasOnGround = f.onGround;
     f.onGround = false;
     const newBottom = f.y + f.h * 0.5;
@@ -342,7 +420,6 @@ export class GameEngine {
       }
     }
 
-    // Spring barrel collisions
     for (const s of this.springs) {
       const dx = Math.abs(wrapDeltaX(f.x, s.x + s.w * 0.5));
       if (dx < (f.w + s.w) * 0.45 && f.y + f.h * 0.5 >= s.y && f.y - f.h * 0.5 <= s.y + s.h) {
@@ -356,7 +433,6 @@ export class GameEngine {
       }
     }
 
-    // Pit wrap (like classic Mario Bros / Mario vs Luigi: drop from sky)
     if (f.y - f.h * 0.5 > WORLD_H + 30) {
       f.y = 32;
       f.vy = 120;
@@ -376,71 +452,155 @@ export class GameEngine {
     return false;
   }
 
-  private fireWeapon(f: Fighter): void {
-    const isRapid = f.powerUp === 'rapid';
-    const isSpread = f.powerUp === 'spread';
-    f.shootCooldown = isRapid ? 0.14 : 0.27;
-    f.muzzleTimer = 0.08;
-    f.shootPoseTimer = 0.22;
+  private grantRandomGear(f: Fighter): void {
+    const roll = Math.random();
+    if (roll < 0.28) {
+      f.weapon = 'shotgun';
+      f.weaponTimer = 12;
+    } else if (roll < 0.56) {
+      f.weapon = 'dynamite';
+      f.weaponTimer = 12;
+    } else if (roll < 0.80) {
+      f.weapon = 'sniper';
+      f.weaponTimer = 12;
+    } else {
+      f.armorHits = 2;
+      f.armorTimer = 12;
+    }
+    sound.playPowerUp();
+    this.burstParticles(f.x, f.y, 14, 'gold', '#e8aa2a');
+  }
 
+  private fireWeapon(f: Fighter): void {
     const muzzleX = wrapX(f.x + f.facing * 24);
     const muzzleY = f.y - 4;
+    f.muzzleTimer = 0.08;
+    f.shootPoseTimer = 0.24;
 
-    const angles = isSpread ? [-0.18, 0, 0.18] : [0];
-    for (const a of angles) {
-      this.bullets.push({
+    if (f.weapon === 'shotgun') {
+      f.shootCooldown = 0.44;
+      for (const a of [-0.19, 0, 0.19]) {
+        this.projectiles.push({
+          kind: 'bullet',
+          owner: f.id,
+          x: muzzleX,
+          y: muzzleY,
+          vx: Math.cos(a) * (BULLET_SPEED * 0.92) * f.facing,
+          vy: Math.sin(a) * (BULLET_SPEED * 0.92),
+          life: 0.42,
+          radius: 4.5,
+          damage: 1,
+          knockback: 340,
+          spin: 0,
+        });
+      }
+      f.vx -= f.facing * 65;
+      sound.playShoot('shotgun');
+    } else if (f.weapon === 'dynamite') {
+      f.shootCooldown = 0.62;
+      this.projectiles.push({
+        kind: 'dynamite',
+        owner: f.id,
+        x: muzzleX,
+        y: muzzleY - 4,
+        vx: f.facing * 290 + f.vx * 0.35,
+        vy: -340,
+        life: 1.05,
+        radius: 7,
+        damage: 2,
+        knockback: 420,
+        spin: 0,
+      });
+      sound.playShoot('dynamite');
+    } else if (f.weapon === 'sniper') {
+      f.shootCooldown = 0.52;
+      this.projectiles.push({
+        kind: 'sniper',
         owner: f.id,
         x: muzzleX,
         y: muzzleY,
-        vx: Math.cos(a) * BULLET_SPEED * f.facing,
-        vy: Math.sin(a) * BULLET_SPEED,
-        life: 0.78,
-        radius: 4.5,
+        vx: f.facing * SNIPER_SPEED,
+        vy: 0,
+        life: 1.05,
+        radius: 5,
+        damage: 2,
+        knockback: 380,
+        spin: 0,
       });
+      f.vx -= f.facing * 45;
+      sound.playShoot('sniper');
+    } else {
+      f.shootCooldown = 0.28;
+      this.projectiles.push({
+        kind: 'bullet',
+        owner: f.id,
+        x: muzzleX,
+        y: muzzleY,
+        vx: f.facing * BULLET_SPEED,
+        vy: 0,
+        life: 0.72,
+        radius: 4.5,
+        damage: 1,
+        knockback: 250,
+        spin: 0,
+      });
+      f.vx -= f.facing * 24;
+      if (f.id === 'p1') sound.playShoot('revolver');
     }
 
-    // Slight recoil kick
-    f.vx -= f.facing * 26;
-    if (f.id === 'p1') sound.playShoot(isSpread);
     this.burstParticles(muzzleX, muzzleY, 4, 'smoke', '#594836');
   }
 
   private resolveFighterDuel(): void {
     const [p1, p2] = this.fighters;
+    if (p1.respawnTimer > 0 || p2.respawnTimer > 0) return;
+
     const dx = wrapDeltaX(p1.x, p2.x);
     const dy = p2.y - p1.y;
     const overlapX = Math.abs(dx) < (p1.w + p2.w) * 0.52;
     const overlapY = Math.abs(dy) < (p1.h + p2.h) * 0.52;
-
     if (!overlapX || !overlapY) return;
 
-    // Check stomp: attacker falling and significantly above defender
     if (p1.vy > 80 && dy > 12 && p2.invulnTimer <= 0) {
-      p1.vy = -460;
+      p1.vy = -470;
       p1.squashX = 1.2;
       p1.squashY = 0.82;
-      this.hitFighter(p2, Math.sign(dx) || 1);
+      this.damageFighter(p2, 2, Math.sign(dx) || 1, 320);
       return;
     }
     if (p2.vy > 80 && dy < -12 && p1.invulnTimer <= 0) {
-      p2.vy = -460;
+      p2.vy = -470;
       p2.squashX = 1.2;
       p2.squashY = 0.82;
-      this.hitFighter(p1, -Math.sign(dx) || -1);
+      this.damageFighter(p1, 2, -Math.sign(dx) || -1, 320);
       return;
     }
 
-    // Gentle body separation
     const push = dx >= 0 ? -1 : 1;
     p1.vx += push * 75;
     p2.vx -= push * 75;
   }
 
-  private hitFighter(victim: Fighter, knockDir: number): void {
-    victim.invulnTimer = 1.35;
-    victim.stunTimer = 0.32;
-    victim.vx = knockDir * 290;
-    victim.vy = -290;
+  private damageFighter(victim: Fighter, damage: number, knockDir: number, knockback: number): void {
+    if (victim.respawnTimer > 0 || victim.invulnTimer > 0) return;
+
+    // Sheriff Armor absorbs hit cleanly!
+    if (victim.armorHits > 0) {
+      victim.armorHits -= 1;
+      if (victim.armorHits === 0) victim.armorTimer = 0;
+      victim.invulnTimer = 0.65;
+      victim.vx = knockDir * (knockback * 0.45);
+      victim.vy = -160;
+      sound.playCoin();
+      this.burstParticles(victim.x, victim.y, 10, 'gold', '#f2c14e');
+      return;
+    }
+
+    victim.hp = Math.max(0, victim.hp - damage);
+    victim.invulnTimer = 0.75;
+    victim.stunTimer = 0.28;
+    victim.vx = knockDir * knockback;
+    victim.vy = -270;
     victim.squashX = 1.35;
     victim.squashY = 0.68;
 
@@ -450,109 +610,243 @@ export class GameEngine {
     sound.playHit();
     this.burstParticles(victim.x, victim.y, 12, 'spark', '#3c2b1e');
 
-    // Mario vs Luigi core mechanic: knock 1 Star loose!
-    if (victim.stars > 0) {
-      victim.stars -= 1;
-      this.stars.push({
-        x: victim.x,
-        y: victim.y - 18,
-        vx: -knockDir * (140 + Math.random() * 80),
-        vy: -380,
-        radius: 14,
-        dropped: true,
-        pickupDelay: 0.45,
-        bobPhase: 0,
-        life: 14,
-      });
-      this.burstParticles(victim.x, victim.y - 12, 10, 'star', '#e6a82e');
+    if (victim.hp <= 0) {
+      this.koFighter(victim, knockDir);
     }
   }
 
-  private updateBullets(dt: number): void {
-    for (let i = this.bullets.length - 1; i >= 0; i--) {
-      const b = this.bullets[i];
+  private koFighter(victim: Fighter, knockDir: number): void {
+    const isWanted = this.getWantedId() === victim.id;
+    const dropCount = Math.min(victim.gold, isWanted ? 2 : 1);
+
+    // Even with infinite lives, KO forces a gold drop + respawn delay!
+    for (let i = 0; i < dropCount; i++) {
+      victim.gold -= 1;
+      const spreadDir = i === 0 ? -knockDir : knockDir;
+      this.golds.push({
+        x: victim.x,
+        y: victim.y - 16,
+        vx: spreadDir * (135 + Math.random() * 85),
+        vy: -380 - i * 45,
+        radius: 15,
+        dropped: true,
+        pickupDelay: 0.5,
+        bobPhase: 0,
+        life: 16,
+      });
+    }
+
+    victim.weapon = 'revolver';
+    victim.weaponTimer = 0;
+    victim.respawnTimer = 1.35;
+    sound.playKO();
+    this.shakeTimer = 0.3;
+    this.shakePower = 8;
+    this.burstParticles(victim.x, victim.y, 20, 'gold', '#e6a82e');
+    this.burstParticles(victim.x, victim.y, 14, 'smoke', '#4c3a2a');
+
+    // Finite lives decrement & KO win check
+    if (victim.lives > 0) {
+      victim.lives -= 1;
+      if (victim.lives <= 0) {
+        this.mode = 'result';
+        this.winner = victim.id === 'p1' ? 'p2' : 'p1';
+        this.winReason = 'ko';
+        sound.playWin(this.winner === 'p1');
+      }
+    }
+  }
+
+  private triggerExplosion(x: number, y: number, radius: number, damage: number): void {
+    this.explosions.push({ x, y, radius, life: 0.34, maxLife: 0.34 });
+    sound.playExplosion();
+    this.shakeTimer = 0.32;
+    this.shakePower = 9;
+    this.burstParticles(x, y, 22, 'fire', '#e86825');
+    this.burstParticles(x, y, 14, 'smoke', '#3e2d1e');
+
+    // Damage both fighters inside blast radius
+    for (const f of this.fighters) {
+      if (f.respawnTimer > 0) continue;
+      const dx = wrapDeltaX(x, f.x);
+      const dy = f.y - y;
+      if (Math.hypot(dx, dy) <= radius + 16) {
+        this.damageFighter(f, damage, Math.sign(dx) || 1, 410);
+      }
+    }
+
+    // Chain-detonate nearby TNT barrels
+    for (const t of this.tnts) {
+      if (!t.alive) continue;
+      const tx = t.x + t.w * 0.5;
+      const ty = t.y + t.h * 0.5;
+      const d = Math.hypot(wrapDeltaX(x, tx), ty - y);
+      if (d <= radius + 20) {
+        t.alive = false;
+        t.respawnTimer = 9;
+        this.triggerExplosion(tx, ty, 88, 2);
+      }
+    }
+  }
+
+  private updateProjectiles(dt: number): void {
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const b = this.projectiles[i];
       b.life -= dt;
+      if (b.kind === 'dynamite') {
+        b.vy = Math.min(MAX_FALL * 0.85, b.vy + GRAVITY * 0.85 * dt);
+        b.spin += dt * 11 * Math.sign(b.vx || 1);
+      }
+
       b.x = wrapX(b.x + b.vx * dt);
       b.y += b.vy * dt;
 
-      if (b.life <= 0 || b.y < 0 || b.y > WORLD_H) {
-        this.bullets.splice(i, 1);
+      // Dynamite floor bounce
+      if (b.kind === 'dynamite' && b.vy > 0) {
+        for (const p of this.platforms) {
+          if (this.overlapsPlatformX(b.x, b.radius * 1.4, p)) {
+            if (b.y + b.radius >= p.y && b.y + b.radius <= p.y + 20) {
+              b.y = p.y - b.radius;
+              b.vy = -b.vy * 0.48;
+              b.vx *= 0.72;
+              break;
+            }
+          }
+        }
+      }
+
+      if (b.life <= 0 || b.y < -20 || b.y > WORLD_H + 40) {
+        if (b.kind === 'dynamite') {
+          this.triggerExplosion(b.x, b.y, 78, b.damage);
+        }
+        this.projectiles.splice(i, 1);
+        continue;
+      }
+
+      // Check TNT barrel hits
+      let hitTnt = false;
+      for (const t of this.tnts) {
+        if (!t.alive) continue;
+        const tx = t.x + t.w * 0.5;
+        const ty = t.y + t.h * 0.5;
+        if (Math.abs(wrapDeltaX(b.x, tx)) < t.w * 0.55 + b.radius && Math.abs(b.y - ty) < t.h * 0.55 + b.radius) {
+          t.alive = false;
+          t.respawnTimer = 9;
+          this.triggerExplosion(tx, ty, 88, 2);
+          hitTnt = true;
+          break;
+        }
+      }
+      if (hitTnt) {
+        this.projectiles.splice(i, 1);
         continue;
       }
 
       // Hit opponent
       const target = b.owner === 'p1' ? this.fighters[1] : this.fighters[0];
-      if (target.invulnTimer <= 0) {
+      if (target.respawnTimer <= 0 && target.invulnTimer <= 0) {
         const dx = Math.abs(wrapDeltaX(b.x, target.x));
         const dy = Math.abs(b.y - target.y);
         if (dx < target.w * 0.55 + b.radius && dy < target.h * 0.52 + b.radius) {
-          this.hitFighter(target, Math.sign(b.vx) || 1);
-          this.bullets.splice(i, 1);
+          if (b.kind === 'dynamite') {
+            this.triggerExplosion(b.x, b.y, 78, b.damage);
+          } else {
+            this.damageFighter(target, b.damage, Math.sign(b.vx) || 1, b.knockback);
+          }
+          if (b.kind !== 'sniper') {
+            this.projectiles.splice(i, 1);
+          }
           continue;
         }
       }
     }
   }
 
-  private updateStars(dt: number): void {
-    let hasMainStar = false;
+  private updateExplosions(dt: number): void {
+    for (let i = this.explosions.length - 1; i >= 0; i--) {
+      this.explosions[i].life -= dt;
+      if (this.explosions[i].life <= 0) {
+        this.explosions.splice(i, 1);
+      }
+    }
+  }
 
-    for (let i = this.stars.length - 1; i >= 0; i--) {
-      const st = this.stars[i];
-      st.bobPhase += dt * 4.5;
-      if (st.pickupDelay > 0) st.pickupDelay = Math.max(0, st.pickupDelay - dt);
+  private updateCrates(): void {
+    for (const c of this.crates) {
+      if (!c.alive) continue;
+      const cx = c.x + c.w * 0.5;
+      const cy = c.y + c.h * 0.5;
+      for (const f of this.fighters) {
+        if (f.respawnTimer > 0) continue;
+        if (Math.abs(wrapDeltaX(f.x, cx)) < 26 && Math.abs(f.y - cy) < 28) {
+          c.alive = false;
+          c.respawnTimer = 11;
+          this.grantRandomGear(f);
+          break;
+        }
+      }
+    }
+  }
 
-      if (st.dropped) {
-        st.life -= dt;
-        st.vy = Math.min(MAX_FALL * 0.75, st.vy + GRAVITY * 0.75 * dt);
-        st.x = wrapX(st.x + st.vx * dt);
-        st.y += st.vy * dt;
-        st.vx *= Math.pow(0.45, dt);
+  private updateGolds(dt: number): void {
+    let hasMainGold = false;
 
-        // Bounce on platforms
+    for (let i = this.golds.length - 1; i >= 0; i--) {
+      const g = this.golds[i];
+      g.bobPhase += dt * 4.5;
+      if (g.pickupDelay > 0) g.pickupDelay = Math.max(0, g.pickupDelay - dt);
+
+      if (g.dropped) {
+        g.life -= dt;
+        g.vy = Math.min(MAX_FALL * 0.75, g.vy + GRAVITY * 0.75 * dt);
+        g.x = wrapX(g.x + g.vx * dt);
+        g.y += g.vy * dt;
+        g.vx *= Math.pow(0.45, dt);
+
         for (const p of this.platforms) {
-          if (this.overlapsPlatformX(st.x, st.radius * 1.4, p)) {
-            if (st.vy > 0 && st.y + st.radius >= p.y && st.y + st.radius <= p.y + 22) {
-              st.y = p.y - st.radius;
-              st.vy = Math.abs(st.vy) > 90 ? -st.vy * 0.58 : 0;
+          if (this.overlapsPlatformX(g.x, g.radius * 1.4, p)) {
+            if (g.vy > 0 && g.y + g.radius >= p.y && g.y + g.radius <= p.y + 22) {
+              g.y = p.y - g.radius;
+              g.vy = Math.abs(g.vy) > 90 ? -g.vy * 0.55 : 0;
               break;
             }
           }
         }
-        if (st.y > WORLD_H + 20) {
-          st.y = 40;
-          st.vy = 80;
+        if (g.y > WORLD_H + 20) {
+          g.y = 40;
+          g.vy = 80;
         }
-        if (st.life <= 0) {
-          this.stars.splice(i, 1);
+        if (g.life <= 0) {
+          this.golds.splice(i, 1);
           continue;
         }
       } else {
-        hasMainStar = true;
+        hasMainGold = true;
       }
 
-      // Fighter collection
-      if (st.pickupDelay <= 0) {
+      if (g.pickupDelay <= 0) {
         for (const f of this.fighters) {
-          const dx = Math.abs(wrapDeltaX(f.x, st.x));
-          const dy = Math.abs(f.y - st.y);
-          if (dx < f.w * 0.65 + st.radius && dy < f.h * 0.6 + st.radius) {
-            f.stars += 1;
+          if (f.respawnTimer > 0) continue;
+          const dx = Math.abs(wrapDeltaX(f.x, g.x));
+          const dy = Math.abs(f.y - g.y);
+          if (dx < f.w * 0.65 + g.radius && dy < f.h * 0.6 + g.radius) {
+            f.gold += 1;
             sound.playStar();
-            this.burstParticles(st.x, st.y, 18, 'star', '#f0b636');
+            this.burstParticles(g.x, g.y, 18, 'gold', '#f0b636');
             this.shakeTimer = 0.14;
             this.shakePower = 4;
-            const wasMain = !st.dropped;
-            this.stars.splice(i, 1);
+            const wasMain = !g.dropped;
+            this.golds.splice(i, 1);
 
-            if (f.stars >= WIN_STARS) {
+            if (f.gold >= this.rules.targetGold) {
               this.mode = 'result';
               this.winner = f.id;
+              this.winReason = 'gold';
               sound.playWin(f.id === 'p1');
               return;
             }
             if (wasMain) {
-              this.starRespawnTimer = 1.0;
+              this.goldRespawnTimer = 1.0;
             }
             break;
           }
@@ -560,10 +854,10 @@ export class GameEngine {
       }
     }
 
-    if (!hasMainStar) {
-      this.starRespawnTimer -= dt;
-      if (this.starRespawnTimer <= 0) {
-        this.spawnMainStar();
+    if (!hasMainGold) {
+      this.goldRespawnTimer -= dt;
+      if (this.goldRespawnTimer <= 0) {
+        this.spawnMainGold();
       }
     }
   }
@@ -576,6 +870,7 @@ export class GameEngine {
       c.phase += dt * 4;
 
       for (const f of this.fighters) {
+        if (f.respawnTimer > 0) continue;
         const dx = Math.abs(wrapDeltaX(f.x, c.x));
         const dy = Math.abs(f.y - c.y);
         if (dx < 24 && dy < 28) {
@@ -584,13 +879,9 @@ export class GameEngine {
           if (f.id === 'p1') sound.playCoin();
           this.burstParticles(c.x, c.y, 6, 'spark', '#d99a26');
 
-          if (f.coins >= COINS_FOR_POWERUP) {
+          if (f.coins >= COINS_FOR_GEAR) {
             f.coins = 0;
-            const pool: PowerUpType[] = ['spread', 'rapid', 'spurs'];
-            f.powerUp = pool[Math.floor(Math.random() * pool.length)];
-            f.powerTimer = 11;
-            sound.playPowerUp();
-            this.burstParticles(f.x, f.y, 14, 'star', '#d99a26');
+            this.grantRandomGear(f);
           }
           break;
         }
@@ -617,24 +908,36 @@ export class GameEngine {
       shoot: false,
     };
 
+    if (ai.respawnTimer > 0) return out;
+
     this.aiDecisionTimer -= dt;
     if (this.aiJumpHold > 0) {
       this.aiJumpHold -= dt;
       out.jump = true;
     }
 
-    // Choose target: dropped star > main star > closest coin
+    // Priority: dropped gold > nearby weapon crate (if unarmed) > main gold > player
     let targetX = p1.x;
     let targetY = p1.y;
 
-    const dropped = this.stars.find((s) => s.dropped && s.pickupDelay <= 0.15);
-    const mainStar = this.stars.find((s) => !s.dropped);
+    const dropped = this.golds.find((g) => g.dropped && g.pickupDelay <= 0.15);
+    const mainGold = this.golds.find((g) => !g.dropped);
+    const nearbyCrate =
+      ai.weapon === 'revolver'
+        ? this.crates.find(
+            (c) => c.alive && Math.abs(wrapDeltaX(ai.x, c.x + c.w * 0.5)) < 220 && Math.abs(c.y - ai.y) < 120
+          )
+        : undefined;
+
     if (dropped) {
       targetX = dropped.x;
       targetY = dropped.y;
-    } else if (mainStar) {
-      targetX = mainStar.x;
-      targetY = mainStar.y;
+    } else if (nearbyCrate) {
+      targetX = nearbyCrate.x + nearbyCrate.w * 0.5;
+      targetY = nearbyCrate.y;
+    } else if (mainGold) {
+      targetX = mainGold.x;
+      targetY = mainGold.y;
     }
 
     const dx = wrapDeltaX(ai.x, targetX);
@@ -643,7 +946,6 @@ export class GameEngine {
     if (dx > 16) out.right = true;
     else if (dx < -16) out.left = true;
 
-    // Jump if target is higher or approaching gap/platform
     if (ai.onGround) {
       const wantsUp = dy < -45;
       const randomHop = this.aiDecisionTimer <= 0 && Math.random() < 0.25;
@@ -655,16 +957,18 @@ export class GameEngine {
       }
     }
 
-    // Shoot if rival is roughly aligned horizontally within range
-    const rivalDx = wrapDeltaX(ai.x, p1.x);
-    const rivalDy = Math.abs(p1.y - ai.y);
-    if (Math.abs(rivalDx) < 310 && rivalDy < 44 && p1.invulnTimer <= 0) {
-      if ((rivalDx > 0 && ai.facing === 1) || (rivalDx < 0 && ai.facing === -1)) {
-        if (Math.random() < 0.12) out.shoot = true;
-      } else if (Math.abs(rivalDx) < 180) {
-        // Turn toward player to shoot
-        out.left = rivalDx < 0;
-        out.right = rivalDx > 0;
+    // Shoot if rival is aligned (or if rival is near an active TNT barrel!)
+    if (p1.respawnTimer <= 0 && p1.invulnTimer <= 0) {
+      const rivalDx = wrapDeltaX(ai.x, p1.x);
+      const rivalDy = Math.abs(p1.y - ai.y);
+      const maxRange = ai.weapon === 'sniper' ? 520 : ai.weapon === 'dynamite' ? 260 : 320;
+      if (Math.abs(rivalDx) < maxRange && rivalDy < (ai.weapon === 'dynamite' ? 110 : 48)) {
+        if ((rivalDx > 0 && ai.facing === 1) || (rivalDx < 0 && ai.facing === -1)) {
+          if (Math.random() < 0.13) out.shoot = true;
+        } else if (Math.abs(rivalDx) < 190) {
+          out.left = rivalDx < 0;
+          out.right = rivalDx > 0;
+        }
       }
     }
 
@@ -680,13 +984,13 @@ export class GameEngine {
   ): void {
     for (let i = 0; i < count; i++) {
       const ang = Math.random() * Math.PI * 2;
-      const spd = 45 + Math.random() * 145;
+      const spd = 45 + Math.random() * 155;
       this.particles.push({
         x,
         y,
         vx: Math.cos(ang) * spd,
         vy: Math.sin(ang) * spd - 45,
-        size: kind === 'star' ? 5 + Math.random() * 4 : 3 + Math.random() * 4,
+        size: kind === 'gold' || kind === 'fire' ? 5 + Math.random() * 4 : 3 + Math.random() * 4,
         life: 0.28 + Math.random() * 0.28,
         maxLife: 0.56,
         kind,
