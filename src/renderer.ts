@@ -21,6 +21,14 @@ export class SketchRenderer {
   private tileBridgeReady = false;
   private propBarrel: HTMLImageElement;
   private propBarrelReady = false;
+  private propGold: HTMLImageElement;
+  private propGoldReady = false;
+  private propTnt: HTMLImageElement;
+  private propTntReady = false;
+  private propCrate: HTMLImageElement;
+  private propCrateReady = false;
+  private propBadge: HTMLImageElement;
+  private propBadgeReady = false;
 
   constructor() {
     this.bgImg = this.loadImg('./assets/western-bg.jpg', () => (this.bgReady = true));
@@ -30,6 +38,10 @@ export class SketchRenderer {
     this.tileWood = this.loadImg('./assets/tile-wood.png', () => (this.tileWoodReady = true));
     this.tileBridge = this.loadImg('./assets/tile-bridge.png', () => (this.tileBridgeReady = true));
     this.propBarrel = this.loadImg('./assets/prop-barrel.png', () => (this.propBarrelReady = true));
+    this.propGold = this.loadImg('./assets/prop-gold.png', () => (this.propGoldReady = true));
+    this.propTnt = this.loadImg('./assets/prop-tnt.png', () => (this.propTntReady = true));
+    this.propCrate = this.loadImg('./assets/prop-crate.png', () => (this.propCrateReady = true));
+    this.propBadge = this.loadImg('./assets/prop-badge.png', () => (this.propBadgeReady = true));
   }
 
   private loadImg(src: string, onLoad: () => void): HTMLImageElement {
@@ -355,54 +367,30 @@ export class SketchRenderer {
 
       ctx.save();
       ctx.translate(sx, sy);
-      // Red western TNT keg
-      ctx.fillStyle = '#b93828';
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(-14, -34, 28, 34, 6);
-      ctx.fill();
-      ctx.stroke();
+      if (this.propTntReady) {
+        ctx.drawImage(this.propTnt, -18, -42, 36, 44);
+      } else {
+        // Red western TNT keg
+        ctx.fillStyle = '#b93828';
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(-14, -34, 28, 34, 6);
+        ctx.fill();
+        ctx.stroke();
 
-      // Wood stave lines
-      ctx.strokeStyle = 'rgba(43, 32, 22, 0.35)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(-6, -33);
-      ctx.lineTo(-6, -1);
-      ctx.moveTo(6, -33);
-      ctx.lineTo(6, -1);
-      ctx.stroke();
-
-      // Iron hoops
-      ctx.fillStyle = '#473c33';
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 1.4;
-      ctx.fillRect(-14.5, -29, 29, 4);
-      ctx.strokeRect(-14.5, -29, 29, 4);
-      ctx.fillRect(-14.5, -8, 29, 4);
-      ctx.strokeRect(-14.5, -8, 29, 4);
-
-      // Parchment TNT stencil band
-      ctx.fillStyle = '#f4e4c1';
-      ctx.fillRect(-13, -22, 26, 11);
-      ctx.strokeRect(-13, -22, 26, 11);
-      ctx.fillStyle = INK;
-      ctx.font = 'bold 8.5px Georgia, serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('TNT', 0, -13.5);
-
-      // Fuse & spark
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.moveTo(0, -34);
-      ctx.quadraticCurveTo(4, -40, 8, -39);
-      ctx.stroke();
-      ctx.fillStyle = '#ffdf6b';
-      ctx.beginPath();
-      ctx.arc(9, -39 + spark * 0.4, 3, 0, Math.PI * 2);
-      ctx.fill();
+        ctx.fillStyle = '#f4e4c1';
+        ctx.fillRect(-13, -22, 26, 11);
+        ctx.strokeRect(-13, -22, 26, 11);
+        ctx.fillStyle = INK;
+        ctx.font = 'bold 8.5px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('TNT', 0, -13.5);
+        ctx.fillStyle = '#ffdf6b';
+        ctx.beginPath();
+        ctx.arc(9, -39 + spark * 0.4, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
     }
   }
@@ -419,35 +407,15 @@ export class SketchRenderer {
       ctx.save();
       ctx.translate(sx, sy);
       ctx.scale(pulse, pulse);
-      // Weathered wooden supply crate
-      ctx.fillStyle = '#b9874c';
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 2;
-      ctx.fillRect(-14, -30, 28, 30);
-      ctx.strokeRect(-14, -30, 28, 30);
-
-      // Inner recessed frame + diagonal brace
-      ctx.fillStyle = '#9e6f3a';
-      ctx.fillRect(-10, -26, 20, 22);
-      ctx.strokeRect(-10, -26, 20, 22);
-      ctx.strokeStyle = '#c99b5e';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(-9, -25);
-      ctx.lineTo(9, -5);
-      ctx.stroke();
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 1.2;
-      ctx.strokeRect(-10, -26, 20, 22);
-
-      // Golden brass emblem in center
-      ctx.fillStyle = '#f2be3d';
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 1.3;
-      ctx.beginPath();
-      ctx.arc(0, -15, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      if (this.propCrateReady) {
+        ctx.drawImage(this.propCrate, -18, -36, 36, 36);
+      } else {
+        ctx.fillStyle = '#b9874c';
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 2;
+        ctx.fillRect(-14, -30, 28, 30);
+        ctx.strokeRect(-14, -30, 28, 30);
+      }
       ctx.restore();
     }
   }
@@ -482,10 +450,13 @@ export class SketchRenderer {
     ctx.stroke();
 
     ctx.scale(pulse, pulse);
-    // Stacked 3-bar gold bullion pyramid
-    this.drawGoldIngot(ctx, -6, 4, 0.78);
-    this.drawGoldIngot(ctx, 6, 4, 0.78);
-    this.drawGoldIngot(ctx, 0, -4, 0.85);
+    if (this.propGoldReady) {
+      ctx.drawImage(this.propGold, -22, -17, 44, 34);
+    } else {
+      this.drawGoldIngot(ctx, -6, 4, 0.78);
+      this.drawGoldIngot(ctx, 6, 4, 0.78);
+      this.drawGoldIngot(ctx, 0, -4, 0.85);
+    }
     ctx.restore();
   }
 
@@ -596,7 +567,7 @@ export class SketchRenderer {
 
     ctx.scale(f.facing * f.squashX, f.squashY);
 
-    // Sheriff Armor golden ring
+    // Sheriff Armor golden ring + badge icon
     if (f.armorHits > 0) {
       ctx.save();
       ctx.strokeStyle = '#f2be3d';
@@ -604,6 +575,9 @@ export class SketchRenderer {
       ctx.beginPath();
       ctx.ellipse(0, -24, 24, 28, 0, 0, Math.PI * 2);
       ctx.stroke();
+      if (this.propBadgeReady) {
+        ctx.drawImage(this.propBadge, 10, -46, 18, 18);
+      }
       ctx.restore();
     } else if (f.weapon !== 'revolver') {
       ctx.save();
