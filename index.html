@@ -120,10 +120,17 @@
 
             <div class="title-controls">
               <div class="rule-rows">
-                <div class="stage-picker" id="stage-picker" role="radiogroup" aria-label="Stage">
-                  <button class="stage-chip active" data-stage="0">CANYON</button>
-                  <button class="stage-chip" data-stage="1">SALOON</button>
-                  <button class="stage-chip" data-stage="2">BRIDGE</button>
+                <div class="top-row">
+                  <div class="stage-picker" id="stage-picker" role="radiogroup" aria-label="Stage">
+                    <button class="stage-chip active" data-stage="0">CANYON</button>
+                    <button class="stage-chip" data-stage="1">SALOON</button>
+                    <button class="stage-chip" data-stage="2">BRIDGE</button>
+                  </div>
+
+                  <div class="mode-picker" id="mode-picker" role="radiogroup" aria-label="Mode">
+                    <button class="mini-chip active" data-net="offline">CPU</button>
+                    <button class="mini-chip" data-net="online">ONLINE</button>
+                  </div>
                 </div>
 
                 <div class="rule-subrow">
@@ -140,6 +147,21 @@
                     <button class="mini-chip" data-lives="5">5</button>
                     <button class="mini-chip" data-lives="0">∞</button>
                   </div>
+                </div>
+
+                <div class="online-bar hidden" id="online-bar">
+                  <button class="mini-chip" id="btn-create-room">CREATE</button>
+                  <input
+                    type="text"
+                    id="input-room-code"
+                    class="code-input"
+                    maxlength="4"
+                    placeholder="CODE"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  <button class="mini-chip" id="btn-join-room">JOIN</button>
+                  <button class="room-status hidden" id="room-status" title="Copy code"></button>
                 </div>
               </div>
 

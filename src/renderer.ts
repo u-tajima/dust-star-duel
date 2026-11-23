@@ -660,18 +660,20 @@ export class SketchRenderer {
   }
 
   private drawOffscreenIndicators(ctx: CanvasRenderingContext2D, game: GameEngine): void {
-    const p1 = game.fighters[0];
+    const me = game.localPlayer === 'p1' ? game.fighters[0] : game.fighters[1];
+    const rival = game.localPlayer === 'p1' ? game.fighters[1] : game.fighters[0];
+    const rivalColor = rival.id === 'p1' ? '#b23b2a' : '#354f70';
+
     const targetGold = game.golds[0];
     if (targetGold) {
       this.drawEdgePointer(ctx, game, targetGold.x, targetGold.y, 'gold', '#f2b830');
     }
 
-    const rival = game.fighters[1];
     if (
       rival.respawnTimer <= 0 &&
-      (Math.abs(wrapDeltaX(p1.x, rival.x)) > VIEW_W * 0.45 || Math.abs(rival.y - p1.y) > VIEW_H * 0.45)
+      (Math.abs(wrapDeltaX(me.x, rival.x)) > VIEW_W * 0.45 || Math.abs(rival.y - me.y) > VIEW_H * 0.45)
     ) {
-      this.drawEdgePointer(ctx, game, rival.x, rival.y, 'rival', '#354f70');
+      this.drawEdgePointer(ctx, game, rival.x, rival.y, 'rival', rivalColor);
     }
   }
 
@@ -725,7 +727,7 @@ export class SketchRenderer {
     if (kind === 'gold') {
       this.drawGoldIngot(ctx, -3, 0, 0.58);
     } else {
-      ctx.fillStyle = '#354f70';
+      ctx.fillStyle = color;
       ctx.strokeStyle = INK;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -782,23 +784,20 @@ export class SketchRenderer {
       ctx.strokeRect(rx + g.x * sx - 3, ry + g.y * sy - 2, 6, 4);
     }
 
-    // Rival & Player dots
+    // Rival & Player dots (bright white ring highlights local player)
     const [p1, p2] = game.fighters;
-    if (p2.respawnTimer <= 0) {
-      ctx.fillStyle = '#354f70';
+    for (const f of [p2, p1]) {
+      if (f.respawnTimer > 0) continue;
+      const isMe = f.id === game.localPlayer;
+      ctx.fillStyle = f.id === 'p1' ? '#b23b2a' : '#354f70';
       ctx.beginPath();
-      ctx.arc(rx + p2.x * sx, ry + p2.y * sy, 2.8, 0, Math.PI * 2);
+      ctx.arc(rx + f.x * sx, ry + f.y * sy, isMe ? 3.3 : 2.7, 0, Math.PI * 2);
       ctx.fill();
-    }
-
-    if (p1.respawnTimer <= 0) {
-      ctx.fillStyle = '#b23b2a';
-      ctx.beginPath();
-      ctx.arc(rx + p1.x * sx, ry + p1.y * sy, 3.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#fff5dc';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      if (isMe) {
+        ctx.strokeStyle = '#fff5dc';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }
     }
 
     ctx.restore();

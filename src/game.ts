@@ -49,8 +49,9 @@ export class GameEngine {
   public shakePower = 0;
   public winner: 'p1' | 'p2' | null = null;
   public winReason: 'gold' | 'ko' = 'gold';
+  public localPlayer: 'p1' | 'p2' = 'p1';
 
-  // Player-centered scrolling camera (DS Mario vs Luigi style)
+  // Local-player-centered scrolling camera (DS Mario vs Luigi style)
   public camX = 0;
   public camY = 0;
 
@@ -174,8 +175,9 @@ export class GameEngine {
     this.coinRespawnTimer = 0;
     this.lastGoldSpawnIdx = -1;
 
-    this.camX = wrapX(this.fighters[0].x - VIEW_W * 0.5);
-    this.camY = Math.max(0, Math.min(WORLD_H - VIEW_H, this.fighters[0].y - VIEW_H * 0.58));
+    const focus = this.localPlayer === 'p1' ? this.fighters[0] : this.fighters[1];
+    this.camX = wrapX(focus.x - VIEW_W * 0.5);
+    this.camY = Math.max(0, Math.min(WORLD_H - VIEW_H, focus.y - VIEW_H * 0.58));
   }
 
   public startMatch(stageIdx = this.stageIndex, rules: MatchRules = this.rules): void {
@@ -183,6 +185,77 @@ export class GameEngine {
     this.loadStage(stageIdx);
     this.mode = 'playing';
     this.spawnMainGold();
+  }
+
+  public exportSnapshot() {
+    return {
+      mode: this.mode,
+      stageIndex: this.stageIndex,
+      rules: this.rules,
+      time: this.time,
+      winner: this.winner,
+      winReason: this.winReason,
+      shakeTimer: this.shakeTimer,
+      shakePower: this.shakePower,
+      fighters: this.fighters.map((f) => ({ ...f })),
+      projectiles: this.projectiles.map((p) => ({ ...p })),
+      explosions: this.explosions.map((e) => ({ ...e })),
+      golds: this.golds.map((g) => ({ ...g })),
+      coins: this.coins.map((c) => ({ collected: c.collected })),
+      tnts: this.tnts.map((t) => ({ alive: t.alive })),
+      crates: this.crates.map((c) => ({ alive: c.alive })),
+      springs: this.springs.map((s) => ({ bounceTimer: s.bounceTimer })),
+      platforms: this.platforms.map((p) => ({ x: p.x, y: p.y })),
+    };
+  }
+
+  public applySnapshot(snap: ReturnType<GameEngine['exportSnapshot']>, dt: number): void {
+    if (this.stageIndex !== snap.stageIndex) {
+      this.loadStage(snap.stageIndex);
+    }
+    this.mode = snap.mode;
+    this.rules = snap.rules;
+    this.time = snap.time;
+    this.winner = snap.winner;
+    this.winReason = snap.winReason;
+    this.shakeTimer = snap.shakeTimer;
+    this.shakePower = snap.shakePower;
+
+    this.fighters = snap.fighters as [Fighter, Fighter];
+    this.projectiles = snap.projectiles as Projectile[];
+    this.explosions = snap.explosions as Explosion[];
+    this.golds = snap.golds as GoldItem[];
+
+    snap.coins.forEach((c, i) => {
+      if (this.coins[i]) this.coins[i].collected = c.collected;
+    });
+    snap.tnts.forEach((t, i) => {
+      if (this.tnts[i]) this.tnts[i].alive = t.alive;
+    });
+    snap.crates.forEach((c, i) => {
+      if (this.crates[i]) this.crates[i].alive = c.alive;
+    });
+    snap.springs.forEach((s, i) => {
+      if (this.springs[i]) this.springs[i].bounceTimer = s.bounceTimer;
+    });
+    snap.platforms.forEach((p, i) => {
+      if (this.platforms[i]) {
+        this.platforms[i].x = p.x;
+        this.platforms[i].y = p.y;
+      }
+    });
+
+    this.updateCamera(Math.min(dt, 0.04));
+  }
+
+  public updateCamera(dt: number): void {
+    const focus = this.localPlayer === 'p1' ? this.fighters[0] : this.fighters[1];
+    const targetCamX = wrapX(focus.x + focus.facing * 42 - VIEW_W * 0.5);
+    const camDx = wrapDeltaX(this.camX, targetCamX);
+    this.camX = wrapX(this.camX + camDx * Math.min(1, dt * 8.5));
+
+    const targetCamY = Math.max(0, Math.min(WORLD_H - VIEW_H, focus.y - VIEW_H * 0.56));
+    this.camY += (targetCamY - this.camY) * Math.min(1, dt * 7.5);
   }
 
   private spawnMainGold(): void {
@@ -207,7 +280,7 @@ export class GameEngine {
     this.burstParticles(pt.x, pt.y, 12, 'gold', '#e6a82e');
   }
 
-  public update(dt: number, p1Input: InputState): void {
+  public update(dt: number, p1Input: InputState, remoteP2Input?: InputState): void {
     const clampedDt = Math.min(dt, 0.04);
 
     if (this.mode !== 'playing') {
@@ -264,8 +337,8 @@ export class GameEngine {
       }
     }
 
-    // 2. Compute AI input for P2
-    const p2Input = this.computeAI(clampedDt);
+    // 2. Use remote P2 input in Online Host mode, otherwise CPU AI
+    const p2Input = remoteP2Input ?? this.computeAI(clampedDt);
 
     // 3. Update fighters
     this.updateFighter(this.fighters[0], p1Input, clampedDt);
@@ -286,14 +359,8 @@ export class GameEngine {
     // 7. Update particles
     this.updateParticles(clampedDt);
 
-    // 8. Smoothly follow Player 1
-    const p1 = this.fighters[0];
-    const targetCamX = wrapX(p1.x + p1.facing * 42 - VIEW_W * 0.5);
-    const camDx = wrapDeltaX(this.camX, targetCamX);
-    this.camX = wrapX(this.camX + camDx * Math.min(1, clampedDt * 8.5));
-
-    const targetCamY = Math.max(0, Math.min(WORLD_H - VIEW_H, p1.y - VIEW_H * 0.56));
-    this.camY += (targetCamY - this.camY) * Math.min(1, clampedDt * 7.5);
+    // 8. Smoothly follow local player
+    this.updateCamera(clampedDt);
   }
 
   private updateFighter(f: Fighter, input: InputState, dt: number): void {
@@ -478,7 +545,7 @@ export class GameEngine {
     f.shootPoseTimer = 0.24;
 
     if (f.weapon === 'shotgun') {
-      f.shootCooldown = 0.44;
+      f.shootCooldown = 0.42;
       for (const a of [-0.19, 0, 0.19]) {
         this.projectiles.push({
           kind: 'bullet',
@@ -497,15 +564,15 @@ export class GameEngine {
       f.vx -= f.facing * 65;
       sound.playShoot('shotgun');
     } else if (f.weapon === 'dynamite') {
-      f.shootCooldown = 0.62;
+      f.shootCooldown = 0.58;
       this.projectiles.push({
         kind: 'dynamite',
         owner: f.id,
         x: muzzleX,
         y: muzzleY - 4,
-        vx: f.facing * 290 + f.vx * 0.35,
-        vy: -340,
-        life: 1.05,
+        vx: f.facing * 295 + f.vx * 0.35,
+        vy: -345,
+        life: 0.95,
         radius: 7,
         damage: 2,
         knockback: 420,
@@ -513,7 +580,7 @@ export class GameEngine {
       });
       sound.playShoot('dynamite');
     } else if (f.weapon === 'sniper') {
-      f.shootCooldown = 0.52;
+      f.shootCooldown = 0.58;
       this.projectiles.push({
         kind: 'sniper',
         owner: f.id,
@@ -638,7 +705,7 @@ export class GameEngine {
 
     victim.weapon = 'revolver';
     victim.weaponTimer = 0;
-    victim.respawnTimer = 1.35;
+    victim.respawnTimer = 1.15;
     sound.playKO();
     this.shakeTimer = 0.3;
     this.shakePower = 8;
@@ -914,6 +981,21 @@ export class GameEngine {
     if (this.aiJumpHold > 0) {
       this.aiJumpHold -= dt;
       out.jump = true;
+    }
+
+    // Dodge away from nearby lit dynamite
+    const dangerDyn = this.projectiles.find(
+      (pr) => pr.kind === 'dynamite' && Math.hypot(wrapDeltaX(ai.x, pr.x), pr.y - ai.y) < 95
+    );
+    if (dangerDyn) {
+      const away = wrapDeltaX(dangerDyn.x, ai.x);
+      out.left = away < 0;
+      out.right = away >= 0;
+      if (ai.onGround) {
+        out.jump = true;
+        out.jumpPressed = true;
+      }
+      return out;
     }
 
     // Priority: dropped gold > nearby weapon crate (if unarmed) > main gold > player

@@ -1,6 +1,7 @@
 import './style.css';
 import { sound } from './audio';
 import { GameEngine } from './game';
+import { NetManager, type NetPacket } from './net';
 import { SketchRenderer } from './renderer';
 import { VIEW_H, VIEW_W } from './stages';
 import type { InputState, MatchRules } from './types';
@@ -20,9 +21,15 @@ const p2LivesEl = document.getElementById('p2-lives')!;
 const p1GearEl = document.getElementById('p1-gear')!;
 const p2GearEl = document.getElementById('p2-gear')!;
 const stagePicker = document.getElementById('stage-picker')!;
+const modePicker = document.getElementById('mode-picker')!;
 const goldPicker = document.getElementById('gold-picker')!;
 const livesPicker = document.getElementById('lives-picker')!;
-const btnStart = document.getElementById('btn-start')!;
+const onlineBar = document.getElementById('online-bar')!;
+const btnCreateRoom = document.getElementById('btn-create-room')!;
+const btnJoinRoom = document.getElementById('btn-join-room')!;
+const inputRoomCode = document.getElementById('input-room-code') as HTMLInputElement;
+const roomStatusEl = document.getElementById('room-status')!;
+const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
 const btnRematch = document.getElementById('btn-rematch')!;
 const btnToTitle = document.getElementById('btn-to-title')!;
 const btnHome = document.getElementById('btn-home')!;
@@ -32,8 +39,63 @@ const iconSoundOff = document.getElementById('icon-sound-off')!;
 const controllerDeck = document.getElementById('controller-deck')!;
 
 const selectedRules: MatchRules = { targetGold: 5, maxLives: 3 };
+let onlineTabActive = false;
+let remoteP2Input: InputState = { left: false, right: false, jump: false, jumpPressed: false, shoot: false };
+let netSyncAccum = 0;
+
 const game = new GameEngine();
 const renderer = new SketchRenderer();
+
+function updateStartButtonState(): void {
+  if (!onlineTabActive) {
+    btnStart.disabled = false;
+    btnStart.textContent = 'DUEL';
+  } else if (net.role === 'host' && net.connected) {
+    btnStart.disabled = false;
+    btnStart.textContent = 'DUEL';
+  } else if (net.role === 'guest' && net.connected) {
+    btnStart.disabled = true;
+    btnStart.textContent = 'READY';
+  } else {
+    btnStart.disabled = true;
+    btnStart.textContent = 'WAIT';
+  }
+}
+
+const net = new NetManager({
+  onStatus(status, connected) {
+    roomStatusEl.textContent = status;
+    roomStatusEl.classList.remove('hidden');
+    roomStatusEl.classList.toggle('ready', connected);
+    updateStartButtonState();
+  },
+  onPacket(pkt: NetPacket) {
+    if (pkt.type === 'input' && net.role === 'host') {
+      remoteP2Input = {
+        ...pkt.input,
+        jumpPressed: remoteP2Input.jumpPressed || pkt.input.jumpPressed,
+      };
+    } else if (pkt.type === 'start' && net.role === 'guest') {
+      clearAllInputs();
+      game.localPlayer = 'p2';
+      game.startMatch(pkt.stageIndex, pkt.rules);
+      overlayTitle.classList.add('hidden');
+      overlayResult.classList.add('hidden');
+      controllerDeck.classList.remove('hidden');
+      syncHUD(true);
+    } else if (pkt.type === 'state' && net.role === 'guest') {
+      game.applySnapshot(pkt.snap as ReturnType<GameEngine['exportSnapshot']>, 1 / 30);
+    } else if (pkt.type === 'rematch' && net.role === 'host') {
+      startDuel();
+    }
+  },
+  onDisconnect() {
+    updateStartButtonState();
+    if (game.mode === 'playing') {
+      showTitle();
+    }
+  },
+});
 
 // Crisp high-DPI canvas scaling for VIEW_W x VIEW_H
 function resizeCanvas(): void {
@@ -245,20 +307,58 @@ livesPicker.addEventListener('click', (e) => {
   });
 });
 
+// Mode / Online room UI
+modePicker.addEventListener('click', (e) => {
+  const target = (e.target as HTMLElement).closest<HTMLButtonElement>('.mini-chip');
+  if (!target) return;
+  onlineTabActive = target.dataset.net === 'online';
+  modePicker.querySelectorAll('.mini-chip').forEach((chip) => {
+    chip.classList.toggle('active', chip === target);
+  });
+  onlineBar.classList.toggle('hidden', !onlineTabActive);
+  if (!onlineTabActive) {
+    net.disconnect();
+    roomStatusEl.classList.add('hidden');
+  }
+  updateStartButtonState();
+});
+
+btnCreateRoom.addEventListener('click', () => {
+  const code = net.createRoom();
+  inputRoomCode.value = code;
+});
+
+btnJoinRoom.addEventListener('click', () => {
+  net.joinRoom(inputRoomCode.value);
+});
+
+roomStatusEl.addEventListener('click', () => {
+  if (net.roomCode && navigator.clipboard) {
+    navigator.clipboard.writeText(net.roomCode).catch(() => {});
+  }
+});
+
 function showTitle(): void {
   clearAllInputs();
+  game.localPlayer = 'p1';
   game.mode = 'title';
   game.loadStage(game.stageIndex);
   overlayTitle.classList.remove('hidden');
   overlayResult.classList.add('hidden');
   controllerDeck.classList.add('hidden');
+  updateStartButtonState();
   syncHUD(true);
 }
 
 function startDuel(): void {
+  if (onlineTabActive && net.role === 'guest') return;
   clearAllInputs();
   sound.unlock();
+  game.localPlayer = 'p1';
   game.startMatch(game.stageIndex, selectedRules);
+  if (net.role === 'host' && net.connected) {
+    net.send({ type: 'start', stageIndex: game.stageIndex, rules: selectedRules });
+  }
   overlayTitle.classList.add('hidden');
   overlayResult.classList.add('hidden');
   controllerDeck.classList.remove('hidden');
@@ -266,7 +366,13 @@ function startDuel(): void {
 }
 
 btnStart.addEventListener('click', startDuel);
-btnRematch.addEventListener('click', startDuel);
+btnRematch.addEventListener('click', () => {
+  if (net.role === 'guest' && net.connected) {
+    net.send({ type: 'rematch' });
+  } else {
+    startDuel();
+  }
+});
 btnToTitle.addEventListener('click', showTitle);
 btnHome.addEventListener('click', showTitle);
 
@@ -311,7 +417,7 @@ function syncHUD(force = false): void {
   p2GearEl.classList.toggle('hidden', !g2);
 
   if (game.mode === 'result' && overlayResult.classList.contains('hidden')) {
-    const won = game.winner === 'p1';
+    const won = game.winner === game.localPlayer;
     resultTitle.textContent = won ? 'VICTORY' : 'DEFEAT';
     resultScore.textContent =
       game.winReason === 'ko'
@@ -351,7 +457,29 @@ function loop(ts: number): void {
     pendingShootPress = false;
   }
 
-  game.update(dt, input);
+  netSyncAccum += dt;
+
+  if (net.role === 'guest' && net.connected) {
+    // Guest sends local inputs to Host (immediately on jump/shoot, or at 30Hz)
+    if (input.jumpPressed || input.shoot || netSyncAccum >= 1 / 30) {
+      netSyncAccum = 0;
+      net.send({ type: 'input', input });
+    }
+    game.updateCamera(Math.min(dt, 0.04));
+  } else if (net.role === 'host' && net.connected) {
+    // Host runs authoritative simulation using Guest's input for P2
+    const p2In = { ...remoteP2Input };
+    remoteP2Input.jumpPressed = false;
+    game.update(dt, input, p2In);
+    if (netSyncAccum >= 1 / 30) {
+      netSyncAccum = 0;
+      net.send({ type: 'state', snap: game.exportSnapshot() });
+    }
+  } else {
+    // Offline 1P vs CPU
+    game.update(dt, input);
+  }
+
   renderer.render(ctx, game);
   syncHUD();
 
