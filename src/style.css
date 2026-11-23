@@ -1,0 +1,487 @@
+:root {
+  --ink: #2b2016;
+  --paper: #e8d7b7;
+  --paper-deep: #d4bc91;
+  --p1: #b23b2a;
+  --p2: #354f70;
+  --gold: #e8aa2a;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: #231910;
+  color: var(--ink);
+  font-family: Georgia, 'Times New Roman', serif;
+  touch-action: none;
+}
+
+#app {
+  width: 100%;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, #382819 0%, #1d140c 100%);
+}
+
+.stage-frame {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Floating Top HUD (safe-area aware) */
+.hud-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 6px
+    max(12px, env(safe-area-inset-left));
+  pointer-events: none;
+}
+
+.hud-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(232, 215, 183, 0.84);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 4px 10px;
+  box-shadow: 2px 2px 0 rgba(43, 32, 22, 0.35);
+}
+
+.hud-badge {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  flex-shrink: 0;
+}
+
+.p1-badge {
+  background: var(--p1);
+}
+
+.p2-badge {
+  background: var(--p2);
+}
+
+.star-slots {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.star-slot {
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+}
+
+.coin-meter {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.coin-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1.2px solid var(--ink);
+  background: rgba(43, 32, 22, 0.14);
+}
+
+.coin-pip.filled {
+  background: var(--gold);
+}
+
+.hud-center {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  background: rgba(232, 215, 183, 0.88);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 2px 2px 0 rgba(43, 32, 22, 0.35);
+}
+
+.icon-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(43, 32, 22, 0.35);
+}
+
+.icon-svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Landscape Overlay Touch Controls */
+.controller-deck {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  pointer-events: none;
+}
+
+.pad-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.pad-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2.5px solid var(--ink);
+  background: rgba(232, 215, 183, 0.72);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-shadow: 0 3px 0 rgba(43, 32, 22, 0.45);
+  touch-action: none;
+  cursor: pointer;
+  backdrop-filter: blur(2px);
+}
+
+.pad-btn.pressed,
+.pad-btn:active {
+  transform: translateY(2px);
+  background: rgba(212, 188, 145, 0.92);
+  box-shadow: 0 1px 0 rgba(43, 32, 22, 0.45);
+}
+
+.pad-shoot {
+  background: rgba(178, 59, 42, 0.78);
+  color: #f8ecd4;
+}
+
+.pad-shoot.pressed,
+.pad-shoot:active {
+  background: rgba(154, 46, 31, 0.95);
+}
+
+.pad-jump {
+  width: 70px;
+  height: 70px;
+  background: rgba(232, 170, 42, 0.8);
+  color: var(--ink);
+}
+
+.pad-jump.pressed,
+.pad-jump:active {
+  background: rgba(214, 150, 26, 0.96);
+}
+
+.pad-icon {
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+}
+
+/* Overlays (Title & Result) */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: rgba(33, 22, 12, 0.56);
+  backdrop-filter: blur(3px);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.title-card,
+.result-card {
+  width: min(520px, 100%);
+  max-height: 100%;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: 6px 6px 0 rgba(25, 16, 9, 0.55);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.title-art-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 8.5;
+  max-height: 52dvh;
+  overflow: hidden;
+  border-bottom: 2.5px solid var(--ink);
+  background: var(--paper-deep);
+}
+
+.title-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.title-logo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 10px;
+  background: linear-gradient(to top, rgba(35, 22, 12, 0.65) 0%, transparent 55%);
+}
+
+.title-logo h1 {
+  margin: 0;
+  font-size: clamp(1.3rem, 3.6vw, 2rem);
+  letter-spacing: 0.14em;
+  color: #f9ebd0;
+  text-shadow: 2px 2px 0 var(--ink);
+}
+
+.title-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.stage-picker {
+  display: flex;
+  gap: 6px;
+}
+
+.stage-chip {
+  border: 2px solid var(--ink);
+  background: rgba(255, 248, 232, 0.7);
+  color: var(--ink);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  padding: 7px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.stage-chip.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.primary-btn,
+.secondary-btn {
+  font-family: inherit;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-size: 0.95rem;
+  padding: 9px 22px;
+  border-radius: 6px;
+  border: 2.5px solid var(--ink);
+  cursor: pointer;
+  box-shadow: 3px 3px 0 rgba(43, 32, 22, 0.45);
+}
+
+.primary-btn {
+  background: var(--p1);
+  color: #fdf2dc;
+}
+
+.secondary-btn {
+  background: var(--paper-deep);
+  color: var(--ink);
+}
+
+.primary-btn:active,
+.secondary-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 rgba(43, 32, 22, 0.45);
+}
+
+.result-card {
+  width: min(340px, 92%);
+  padding: 20px 18px;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.result-emblem {
+  width: 52px;
+  height: 52px;
+}
+
+.result-title {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: 0.14em;
+}
+
+.result-score {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.result-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* Portrait graceful adaptation (keeps canvas clean on top, controls below) */
+@media (orientation: portrait) {
+  .stage-frame {
+    display: flex;
+    flex-direction: column;
+    background: var(--paper-deep);
+  }
+
+  #game-canvas {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    margin-top: calc(48px + env(safe-area-inset-top));
+    border-top: 2px solid var(--ink);
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .controller-deck {
+    position: relative;
+    flex: 1;
+    align-items: center;
+    padding-top: 12px;
+  }
+
+  .pad-btn {
+    width: 72px;
+    height: 72px;
+  }
+
+  .pad-jump {
+    width: 78px;
+    height: 78px;
+  }
+}
+
+/* Narrow viewports (e.g. 390px portrait): keep top HUD compact with zero clipping */
+@media (max-width: 480px) {
+  .hud-bar {
+    gap: 4px;
+    padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) 4px
+      max(6px, env(safe-area-inset-left));
+  }
+
+  .hud-side {
+    gap: 4px;
+    padding: 3px 6px;
+  }
+
+  .hud-badge {
+    width: 10px;
+    height: 10px;
+  }
+
+  .star-slots {
+    gap: 1px;
+  }
+
+  .star-slot,
+  .star-slot svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .coin-meter {
+    display: none;
+  }
+
+  .hud-center {
+    gap: 4px;
+  }
+
+  .icon-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .icon-svg {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+/* Compact landscape phones (short height) */
+@media (max-height: 430px) and (orientation: landscape) {
+  .pad-btn {
+    width: 56px;
+    height: 56px;
+  }
+
+  .pad-jump {
+    width: 62px;
+    height: 62px;
+  }
+
+  .title-art-wrap {
+    max-height: 46dvh;
+  }
+}
