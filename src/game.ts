@@ -248,13 +248,13 @@ export class GameEngine {
     }
 
     if (f.onGround) {
-      f.coyoteTimer = 0.1;
+      f.coyoteTimer = 0.13;
     } else {
       f.coyoteTimer = Math.max(0, f.coyoteTimer - dt);
     }
 
     if (input.jumpPressed) {
-      f.jumpBufferTimer = 0.11;
+      f.jumpBufferTimer = 0.14;
     } else {
       f.jumpBufferTimer = Math.max(0, f.jumpBufferTimer - dt);
     }
@@ -327,7 +327,7 @@ export class GameEngine {
     if (f.vy >= 0) {
       for (const p of this.platforms) {
         if (this.overlapsPlatformX(f.x, f.w * 0.8, p)) {
-          if (prevBottom <= p.y + 8 && newBottom >= p.y) {
+          if (prevBottom <= p.y + 12 && newBottom >= p.y) {
             f.y = p.y - f.h * 0.5;
             f.vy = 0;
             f.onGround = true;

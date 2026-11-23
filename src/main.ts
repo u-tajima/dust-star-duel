@@ -40,12 +40,16 @@ function resizeCanvas(): void {
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-// Input state (keyboard + rock-solid live TouchList + mouse fallback)
+// Input state (keyboard + unified slide-capable TouchList + guarded mouse fallback)
 const keyState = { left: false, right: false, jump: false, shoot: false };
 const touchState = { left: false, right: false, jump: false, shoot: false };
 const mouseState = { left: false, right: false, jump: false, shoot: false };
 let prevJump = false;
+let pendingJumpPress = false;
+let pendingShootPress = false;
+let lastTouchMs = 0;
 
+const padMoveEl = document.querySelector<HTMLElement>('.pad-move')!;
 const ctrlButtons: Record<keyof typeof touchState, HTMLElement> = {
   left: document.getElementById('ctrl-left')!,
   right: document.getElementById('ctrl-right')!,
@@ -63,6 +67,9 @@ function clearAllInputs(): void {
   keyState.left = keyState.right = keyState.jump = keyState.shoot = false;
   touchState.left = touchState.right = touchState.jump = touchState.shoot = false;
   mouseState.left = mouseState.right = mouseState.jump = mouseState.shoot = false;
+  prevJump = false;
+  pendingJumpPress = false;
+  pendingShootPress = false;
   syncButtonVisuals();
 }
 
@@ -75,9 +82,11 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'ArrowLeft' || e.code === 'KeyA') keyState.left = true;
   if (e.code === 'ArrowRight' || e.code === 'KeyD') keyState.right = true;
   if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'KeyZ') {
+    if (!keyState.jump) pendingJumpPress = true;
     keyState.jump = true;
   }
   if (e.code === 'KeyX' || e.code === 'KeyJ' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+    if (!keyState.shoot) pendingShootPress = true;
     keyState.shoot = true;
   }
 });
@@ -93,40 +102,83 @@ window.addEventListener('keyup', (e) => {
   }
 });
 
-// Recompute touch controls directly from OS live TouchList (impossible to stick, supports thumb-sliding L<->R)
+// Unified slide-friendly touch recomputation directly from OS live TouchList:
+// - Left/Right act as a single continuous D-pad rocker (zero dead-zone, zero L+R conflict)
+// - Shoot/Jump support both sliding between them and thumb-rolling both simultaneously
+// - Rising edge of Jump/Shoot latches pendingJumpPress/pendingShootPress so fast taps never drop
 function recomputeTouches(touches: TouchList): void {
-  touchState.left = false;
-  touchState.right = false;
-  touchState.jump = false;
-  touchState.shoot = false;
+  const wasJump = touchState.jump;
+  const wasShoot = touchState.shoot;
 
-  const pad = 10; // forgiving hit margin around buttons
-  const rects = {
-    left: ctrlButtons.left.getBoundingClientRect(),
-    right: ctrlButtons.right.getBoundingClientRect(),
-    jump: ctrlButtons.jump.getBoundingClientRect(),
-    shoot: ctrlButtons.shoot.getBoundingClientRect(),
-  };
+  let nextLeft = false;
+  let nextRight = false;
+  let nextJump = false;
+  let nextShoot = false;
+
+  const moveRect = padMoveEl.getBoundingClientRect();
+  const leftRect = ctrlButtons.left.getBoundingClientRect();
+  const rightRect = ctrlButtons.right.getBoundingClientRect();
+  const jumpRect = ctrlButtons.jump.getBoundingClientRect();
+  const shootRect = ctrlButtons.shoot.getBoundingClientRect();
+
+  const dpadMidX = (leftRect.right + rightRect.left) * 0.5;
+  const dpadPadX = 24;
+  const dpadPadY = 26;
+
+  const jCx = (jumpRect.left + jumpRect.right) * 0.5;
+  const jCy = (jumpRect.top + jumpRect.bottom) * 0.5;
+  const jRad = Math.max(jumpRect.width, jumpRect.height) * 0.5 + 14;
+
+  const sCx = (shootRect.left + shootRect.right) * 0.5;
+  const sCy = (shootRect.top + shootRect.bottom) * 0.5;
+  const sRad = Math.max(shootRect.width, shootRect.height) * 0.5 + 14;
 
   for (let i = 0; i < touches.length; i++) {
     const t = touches[i];
     const x = t.clientX;
     const y = t.clientY;
-    for (const k of ['left', 'right', 'jump', 'shoot'] as const) {
-      const r = rects[k];
-      if (x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad) {
-        touchState[k] = true;
-      }
+
+    // 1. Unified Left/Right D-pad rocker zone (smooth thumb sliding without dead-zone)
+    if (
+      x >= moveRect.left - dpadPadX &&
+      x <= moveRect.right + dpadPadX &&
+      y >= moveRect.top - dpadPadY &&
+      y <= moveRect.bottom + dpadPadY
+    ) {
+      if (x < dpadMidX) nextLeft = true;
+      else nextRight = true;
+      continue;
     }
+
+    // 2. Action buttons (circular hit regions for natural thumb rolling & sliding)
+    const dJump = Math.hypot(x - jCx, y - jCy);
+    const dShoot = Math.hypot(x - sCx, y - sCy);
+    if (dJump <= jRad) nextJump = true;
+    if (dShoot <= sRad) nextShoot = true;
   }
+
+  // Latch rising edges immediately so <16ms quick taps or slide-ins never get dropped
+  if (nextJump && !wasJump) pendingJumpPress = true;
+  if (nextShoot && !wasShoot) pendingShootPress = true;
+
+  touchState.left = nextLeft;
+  touchState.right = nextRight;
+  touchState.jump = nextJump;
+  touchState.shoot = nextShoot;
   syncButtonVisuals();
 }
 
 const handleTouch = (e: TouchEvent) => {
+  lastTouchMs = performance.now();
+  // Never let stale mouse state linger on touch devices
+  mouseState.left = mouseState.right = mouseState.jump = mouseState.shoot = false;
+
   if (game.mode !== 'playing') return;
-  if ((e.target as HTMLElement)?.closest('.controller-deck')) {
-    e.preventDefault();
-  }
+  // Allow tapping top HUD buttons (Mute / Home) normally
+  if ((e.target as HTMLElement)?.closest('.hud-center')) return;
+
+  // Prevent browser scroll/zoom/synthetic-mouse anywhere on the playfield or pad gaps
+  e.preventDefault();
   if (e.type === 'touchstart') sound.unlock();
   recomputeTouches(e.touches);
 };
@@ -135,16 +187,20 @@ window.addEventListener('touchstart', handleTouch, { passive: false });
 window.addEventListener('touchmove', handleTouch, { passive: false });
 window.addEventListener('touchend', handleTouch, { passive: false });
 window.addEventListener('touchcancel', () => {
+  lastTouchMs = performance.now();
   touchState.left = touchState.right = touchState.jump = touchState.shoot = false;
   syncButtonVisuals();
 });
 
-// Desktop mouse support on touch buttons
+// Desktop mouse support on on-screen buttons (strictly ignored right after real touch events)
 (Object.keys(ctrlButtons) as (keyof typeof mouseState)[]).forEach((field) => {
   const el = ctrlButtons[field];
   el.addEventListener('mousedown', (e) => {
+    if (performance.now() - lastTouchMs < 700) return;
     e.preventDefault();
     sound.unlock();
+    if (field === 'jump' && !mouseState.jump) pendingJumpPress = true;
+    if (field === 'shoot' && !mouseState.shoot) pendingShootPress = true;
     mouseState[field] = true;
     syncButtonVisuals();
   });
@@ -245,14 +301,22 @@ function loop(ts: number): void {
   lastTs = ts;
 
   const jumpNow = keyState.jump || touchState.jump || mouseState.jump;
+  const shootNow = keyState.shoot || touchState.shoot || mouseState.shoot;
+  const jumpPressed = pendingJumpPress || (jumpNow && !prevJump);
   const input: InputState = {
     left: keyState.left || touchState.left || mouseState.left,
     right: keyState.right || touchState.right || mouseState.right,
     jump: jumpNow,
-    jumpPressed: jumpNow && !prevJump,
-    shoot: keyState.shoot || touchState.shoot || mouseState.shoot,
+    jumpPressed,
+    shoot: shootNow || pendingShootPress,
   };
   prevJump = jumpNow;
+
+  // Only consume latched taps when game isn't frozen in hitstop
+  if (game.hitstop <= 0) {
+    pendingJumpPress = false;
+    pendingShootPress = false;
+  }
 
   game.update(dt, input);
   renderer.render(ctx, game);

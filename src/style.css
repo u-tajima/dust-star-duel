@@ -10,6 +10,7 @@
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -175,6 +176,14 @@ body {
   align-items: center;
   gap: 12px;
   pointer-events: auto;
+}
+
+.pad-move {
+  background: rgba(232, 215, 183, 0.32);
+  border: 2px solid rgba(43, 32, 22, 0.35);
+  border-radius: 999px;
+  padding: 5px;
+  gap: 8px;
 }
 
 .pad-btn {
