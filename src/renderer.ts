@@ -1,14 +1,22 @@
 import { GameEngine, wrapDeltaX, wrapX } from './game';
-import { VIEW_H, VIEW_W, WORLD_H, WORLD_W } from './stages';
-import type { Fighter, GoldItem, Platform, SpringBarrel, TntBarrel, WeaponCrate } from './types';
+import { STAGES, VIEW_H, VIEW_W, WORLD_H, WORLD_W } from './stages';
+import type {
+  Fighter,
+  GoldItem,
+  Platform,
+  SpringBarrel,
+  SteamTrain,
+  TntBarrel,
+  WarpDoor,
+  WeaponCrate,
+} from './types';
 
 const INK = '#2b2016';
 const PARCHMENT_BG = '#e8d7b7';
 const SPRITE_CELL = 160;
 
 export class SketchRenderer {
-  private bgImg: HTMLImageElement;
-  private bgReady = false;
+  private stageBgs: Record<string, { img: HTMLImageElement; ready: boolean }> = {};
   private p1Sheet: HTMLImageElement;
   private p1Ready = false;
   private p2Sheet: HTMLImageElement;
@@ -31,7 +39,14 @@ export class SketchRenderer {
   private propBadgeReady = false;
 
   constructor() {
-    this.bgImg = this.loadImg('./assets/western-bg.jpg', () => (this.bgReady = true));
+    for (const st of STAGES) {
+      const entry = { img: new Image(), ready: false };
+      entry.img.onload = () => {
+        entry.ready = true;
+      };
+      entry.img.src = st.bgSrc;
+      this.stageBgs[st.id] = entry;
+    }
     this.p1Sheet = this.loadImg('./assets/p1-sprites.png', () => (this.p1Ready = true));
     this.p2Sheet = this.loadImg('./assets/p2-sprites.png', () => (this.p2Ready = true));
     this.tileMesa = this.loadImg('./assets/tile-mesa.png', () => (this.tileMesaReady = true));
@@ -71,7 +86,9 @@ export class SketchRenderer {
       this.drawPlatform(ctx, game, p, jx * 0.4, jy * 0.4);
     }
 
-    // 3. Stage props: springs, TNT barrels, weapon crates
+    // 3. Stage props: warp doors, steam train, springs, TNT barrels, weapon crates
+    for (const d of game.doors) this.drawDoor(ctx, game, d);
+    if (game.train) this.drawTrain(ctx, game, game.train);
     for (const s of game.springs) this.drawSpring(ctx, game, s);
     for (const t of game.tnts) {
       if (t.alive) this.drawTnt(ctx, game, t);
@@ -218,7 +235,9 @@ export class SketchRenderer {
     ctx.fillStyle = PARCHMENT_BG;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
-    if (this.bgReady) {
+    const stageDef = STAGES[game.stageIndex];
+    const bg = this.stageBgs[stageDef.id];
+    if (bg && bg.ready) {
       const tileW = VIEW_W;
       const tileH = VIEW_H;
       const offsetX = -((game.camX * 0.25) % tileW);
@@ -227,7 +246,7 @@ export class SketchRenderer {
       ctx.save();
       ctx.globalAlpha = 0.72;
       for (let i = -1; i <= 1; i++) {
-        ctx.drawImage(this.bgImg, offsetX + i * tileW, offsetY, tileW, tileH + 30);
+        ctx.drawImage(bg.img, offsetX + i * tileW, offsetY, tileW, tileH + 30);
       }
       ctx.restore();
     }
@@ -277,12 +296,109 @@ export class SketchRenderer {
     jx: number,
     jy: number
   ): void {
+    // 1. Crumbling Storefront Awning (TOWN)
+    if (p.style === 'awning') {
+      if (p.crumbleState === 'broken') {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(43, 32, 22, 0.22)';
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(sx, sy, p.w, p.h);
+        ctx.restore();
+        return;
+      }
+      const shakeX = p.crumbleState === 'shaking' ? (Math.random() - 0.5) * 4 : 0;
+      ctx.save();
+      ctx.translate(shakeX, 0);
+      const stripes = Math.max(4, Math.floor(p.w / 18));
+      const sw = p.w / stripes;
+      for (let i = 0; i < stripes; i++) {
+        ctx.fillStyle = i % 2 === 0 ? '#b24532' : '#f2dfc0';
+        ctx.fillRect(sx + i * sw, sy, sw + 0.5, p.h + 4);
+      }
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(sx, sy, p.w, p.h + 4);
+      ctx.restore();
+      return;
+    }
+
+    // 2. Swaying Saloon Chandelier (SALOON)
+    if (p.style === 'chandelier') {
+      const cx = sx + p.w * 0.5;
+      ctx.save();
+      // Hanging iron chain to ceiling
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2.4;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(cx, -40);
+      ctx.lineTo(cx, sy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Brass ornate beam
+      ctx.fillStyle = '#c89638';
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(sx, sy, p.w, 13, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      // Flickering candles along chandelier
+      const candleCount = 5;
+      for (let i = 0; i < candleCount; i++) {
+        const px = sx + 14 + (i * (p.w - 28)) / (candleCount - 1);
+        ctx.fillStyle = '#fff5d6';
+        ctx.fillRect(px - 2, sy - 8, 4, 8);
+        ctx.strokeRect(px - 2, sy - 8, 4, 8);
+        ctx.fillStyle = '#ffbe3d';
+        ctx.beginPath();
+        ctx.arc(px, sy - 11, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
+
+    // 3. Solid cover pillars/walls (brick, wood, mesa cover blocks)
+    if (p.solid) {
+      ctx.save();
+      ctx.fillStyle = p.style === 'brick' ? '#9f5e42' : p.style === 'mesa' ? '#bf905c' : '#8d6239';
+      ctx.fillRect(sx, sy, p.w, p.h);
+
+      ctx.strokeStyle = 'rgba(43, 32, 22, 0.35)';
+      ctx.lineWidth = 1;
+      if (p.style === 'brick') {
+        for (let y = sy + 12; y < sy + p.h; y += 12) {
+          ctx.beginPath();
+          ctx.moveTo(sx, y);
+          ctx.lineTo(sx + p.w, y);
+          ctx.stroke();
+        }
+      } else {
+        for (let y = sy + 10; y < sy + p.h; y += 14) {
+          ctx.beginPath();
+          ctx.moveTo(sx + 3, y);
+          ctx.lineTo(sx + p.w - 3, y - 4);
+          ctx.stroke();
+        }
+      }
+
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2.2;
+      ctx.strokeRect(sx, sy, p.w, p.h);
+      ctx.restore();
+      return;
+    }
+
+    // 4. Illustrated repeating tiles (mesa / wood / bridge / brick roof)
     const img =
       p.style === 'mesa'
         ? this.tileMesaReady
           ? this.tileMesa
           : null
-        : p.style === 'wood'
+        : p.style === 'wood' || p.style === 'brick'
           ? this.tileWoodReady
             ? this.tileWood
             : null
@@ -299,7 +415,7 @@ export class SketchRenderer {
       const segW = p.style === 'mesa' ? 148 : p.style === 'bridge' ? 124 : 128;
       const count = Math.max(1, Math.round(p.w / segW));
       const actualSegW = p.w / count;
-      const topOffset = p.style === 'mesa' ? -5 : p.style === 'wood' ? -6 : -3;
+      const topOffset = p.style === 'mesa' ? -5 : p.style === 'wood' || p.style === 'brick' ? -6 : -3;
 
       for (let i = 0; i < count; i++) {
         const dx = sx + i * actualSegW;
@@ -316,7 +432,7 @@ export class SketchRenderer {
     }
 
     ctx.save();
-    ctx.fillStyle = p.style === 'mesa' ? '#c49b66' : p.style === 'wood' ? '#a87948' : '#8f6a42';
+    ctx.fillStyle = '#a87948';
     ctx.fillRect(sx, sy, p.w, p.h);
     ctx.strokeStyle = INK;
     ctx.lineWidth = 2;
@@ -324,6 +440,115 @@ export class SketchRenderer {
     ctx.lineWidth = 1;
     ctx.strokeRect(sx + jx, sy + jy, p.w, p.h);
     ctx.restore();
+  }
+
+  private drawDoor(ctx: CanvasRenderingContext2D, game: GameEngine, d: WarpDoor): void {
+    const sy = d.y - game.camY;
+    if (sy + d.h < -24 || sy > VIEW_H + 24) return;
+    const swing = d.swingTimer > 0 ? Math.sin((d.swingTimer / 0.45) * Math.PI) * 0.45 : 0;
+
+    for (let shift = -WORLD_W; shift <= WORLD_W; shift += WORLD_W) {
+      const sx = d.x + shift - game.camX;
+      if (sx + d.w < -24 || sx > VIEW_W + 24) continue;
+
+      ctx.save();
+      // Archway frame
+      ctx.fillStyle = '#332214';
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(sx, sy, d.w, d.h, [10, 10, 0, 0]);
+      ctx.fill();
+      ctx.stroke();
+
+      // Colored pair header banner (identifies linked warp doors at a glance!)
+      ctx.fillStyle = d.color;
+      ctx.fillRect(sx + 3, sy + 3, d.w - 6, 9);
+      ctx.strokeRect(sx + 3, sy + 3, d.w - 6, 9);
+
+      // Swinging saloon batwing leaves
+      const leafW = (d.w - 8) * 0.5 * (1 - swing);
+      ctx.fillStyle = '#b9864c';
+      ctx.fillRect(sx + 4, sy + 16, leafW, d.h - 24);
+      ctx.strokeRect(sx + 4, sy + 16, leafW, d.h - 24);
+
+      ctx.fillRect(sx + d.w - 4 - leafW, sy + 16, leafW, d.h - 24);
+      ctx.strokeRect(sx + d.w - 4 - leafW, sy + 16, leafW, d.h - 24);
+      ctx.restore();
+    }
+  }
+
+  private drawTrain(ctx: CanvasRenderingContext2D, game: GameEngine, tr: SteamTrain): void {
+    const sy = tr.y - game.camY;
+    if (sy + tr.h < -32 || sy > VIEW_H + 32) return;
+
+    for (let shift = -WORLD_W; shift <= WORLD_W; shift += WORLD_W) {
+      const sx = tr.x + shift - game.camX;
+      if (sx + tr.w < -40 || sx > VIEW_W + 40) continue;
+
+      ctx.save();
+      // Flatcar / Caboose body (left half)
+      ctx.fillStyle = '#8b4a2b';
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2.2;
+      ctx.fillRect(sx, sy + 4, tr.w * 0.52, tr.h - 16);
+      ctx.strokeRect(sx, sy + 4, tr.w * 0.52, tr.h - 16);
+
+      // Caboose windows
+      ctx.fillStyle = '#f8e2a6';
+      ctx.fillRect(sx + 16, sy + 16, 22, 16);
+      ctx.strokeRect(sx + 16, sy + 16, 22, 16);
+      ctx.fillRect(sx + 54, sy + 16, 22, 16);
+      ctx.strokeRect(sx + 54, sy + 16, 22, 16);
+
+      // Iron Locomotive boiler (right half)
+      const locX = sx + tr.w * 0.52;
+      const locW = tr.w * 0.44;
+      ctx.fillStyle = '#3d3834';
+      ctx.fillRect(locX, sy + 10, locW, tr.h - 22);
+      ctx.strokeRect(locX, sy + 10, locW, tr.h - 22);
+
+      // Brass boiler bands
+      ctx.fillStyle = '#d9a438';
+      ctx.fillRect(locX + 18, sy + 10, 5, tr.h - 22);
+      ctx.fillRect(locX + 52, sy + 10, 5, tr.h - 22);
+
+      // Smokestack
+      ctx.fillStyle = '#2d2621';
+      ctx.beginPath();
+      ctx.moveTo(locX + locW - 28, sy + 10);
+      ctx.lineTo(locX + locW - 34, sy - 12);
+      ctx.lineTo(locX + locW - 14, sy - 12);
+      ctx.lineTo(locX + locW - 18, sy + 10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Spiked iron cowcatcher (front hazard!)
+      ctx.fillStyle = '#b23b2a';
+      ctx.beginPath();
+      ctx.moveTo(locX + locW, sy + 24);
+      ctx.lineTo(locX + locW + 16, sy + tr.h - 8);
+      ctx.lineTo(locX + locW, sy + tr.h - 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Spinning iron wheels
+      for (const wx of [sx + 26, sx + 82, locX + 24, locX + 66]) {
+        const wy = sy + tr.h - 10;
+        ctx.fillStyle = '#4e443c';
+        ctx.beginPath();
+        ctx.arc(wx, wy, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(wx + Math.cos(tr.wheelPhase) * 8, wy + Math.sin(tr.wheelPhase) * 8);
+        ctx.lineTo(wx - Math.cos(tr.wheelPhase) * 8, wy - Math.sin(tr.wheelPhase) * 8);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 
   private drawSpring(ctx: CanvasRenderingContext2D, game: GameEngine, s: SpringBarrel): void {

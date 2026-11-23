@@ -12,7 +12,9 @@ import type {
   Platform,
   Projectile,
   SpringBarrel,
+  SteamTrain,
   TntBarrel,
+  WarpDoor,
   WeaponCrate,
 } from './types';
 
@@ -57,6 +59,8 @@ export class GameEngine {
 
   public platforms: Platform[] = [];
   public springs: SpringBarrel[] = [];
+  public doors: WarpDoor[] = [];
+  public train: SteamTrain | null = null;
   public tnts: TntBarrel[] = [];
   public crates: WeaponCrate[] = [];
   public fighters: [Fighter, Fighter];
@@ -94,6 +98,7 @@ export class GameEngine {
       invulnTimer: 0,
       stunTimer: 0,
       respawnTimer: 0,
+      warpCooldown: 0,
       hp: MAX_HP,
       maxHp: MAX_HP,
       lives: this.rules.maxLives === 0 ? -1 : this.rules.maxLives,
@@ -126,11 +131,18 @@ export class GameEngine {
       ...p,
       baseX: p.x,
       baseY: p.y,
+      crumbleState: p.crumble ? 'intact' : undefined,
+      crumbleTimer: 0,
     }));
     this.springs = def.springs.map((s) => ({
       ...s,
       bounceTimer: 0,
     }));
+    this.doors = def.doors.map((d) => ({
+      ...d,
+      swingTimer: 0,
+    }));
+    this.train = def.train ? { ...def.train, wheelPhase: 0 } : null;
     this.tnts = def.tnts.map((pt) => ({
       x: pt.x - 16,
       y: pt.y - 34,
@@ -205,7 +217,9 @@ export class GameEngine {
       tnts: this.tnts.map((t) => ({ alive: t.alive })),
       crates: this.crates.map((c) => ({ alive: c.alive })),
       springs: this.springs.map((s) => ({ bounceTimer: s.bounceTimer })),
-      platforms: this.platforms.map((p) => ({ x: p.x, y: p.y })),
+      platforms: this.platforms.map((p) => ({ x: p.x, y: p.y, crumbleState: p.crumbleState })),
+      doors: this.doors.map((d) => ({ swingTimer: d.swingTimer })),
+      train: this.train ? { x: this.train.x, wheelPhase: this.train.wheelPhase } : null,
     };
   }
 
@@ -242,8 +256,16 @@ export class GameEngine {
       if (this.platforms[i]) {
         this.platforms[i].x = p.x;
         this.platforms[i].y = p.y;
+        this.platforms[i].crumbleState = p.crumbleState;
       }
     });
+    snap.doors?.forEach((d, i) => {
+      if (this.doors[i]) this.doors[i].swingTimer = d.swingTimer;
+    });
+    if (this.train && snap.train) {
+      this.train.x = snap.train.x;
+      this.train.wheelPhase = snap.train.wheelPhase;
+    }
 
     this.updateCamera(Math.min(dt, 0.04));
   }
@@ -302,12 +324,49 @@ export class GameEngine {
     this.time += clampedDt;
     this.shakeTimer = Math.max(0, this.shakeTimer - clampedDt);
 
-    // 1. Update moving platforms & stage props
+    // 1. Update moving platforms, crumbling awnings, doors, steam train & props
     for (const p of this.platforms) {
       if (p.moveAxis === 'x' && p.moveRange && p.moveSpeed) {
         p.x = wrapX(p.baseX + Math.sin(this.time * p.moveSpeed) * p.moveRange);
       } else if (p.moveAxis === 'y' && p.moveRange && p.moveSpeed) {
         p.y = p.baseY + Math.sin(this.time * p.moveSpeed) * p.moveRange;
+      }
+      if (p.crumble && p.crumbleState === 'shaking') {
+        p.crumbleTimer = (p.crumbleTimer ?? 0) - clampedDt;
+        if (p.crumbleTimer <= 0) {
+          p.crumbleState = 'broken';
+          p.crumbleTimer = 4.2;
+          sound.playCrumble();
+          this.burstParticles(wrapX(p.x + p.w * 0.5), p.y + 8, 10, 'dust', '#9c7140');
+        }
+      } else if (p.crumble && p.crumbleState === 'broken') {
+        p.crumbleTimer = (p.crumbleTimer ?? 0) - clampedDt;
+        if (p.crumbleTimer <= 0) {
+          p.crumbleState = 'intact';
+          this.burstParticles(wrapX(p.x + p.w * 0.5), p.y + 8, 5, 'dust', '#d4b885');
+        }
+      }
+    }
+
+    for (const d of this.doors) {
+      if (d.swingTimer > 0) d.swingTimer = Math.max(0, d.swingTimer - clampedDt);
+    }
+
+    if (this.train) {
+      this.train.x = wrapX(this.train.x + this.train.speed * clampedDt);
+      this.train.wheelPhase += clampedDt * 12;
+      if (Math.random() < 0.25) {
+        this.particles.push({
+          x: wrapX(this.train.x + this.train.w - 30),
+          y: this.train.y - 12,
+          vx: -25 + (Math.random() - 0.5) * 20,
+          vy: -55 - Math.random() * 35,
+          size: 5 + Math.random() * 4,
+          life: 0.55,
+          maxLife: 0.55,
+          kind: 'smoke',
+          color: '#e5d8bf',
+        });
       }
     }
 
@@ -392,6 +451,7 @@ export class GameEngine {
     if (f.stunTimer > 0) f.stunTimer = Math.max(0, f.stunTimer - dt);
     if (f.muzzleTimer > 0) f.muzzleTimer = Math.max(0, f.muzzleTimer - dt);
     if (f.shootPoseTimer > 0) f.shootPoseTimer = Math.max(0, f.shootPoseTimer - dt);
+    if (f.warpCooldown > 0) f.warpCooldown = Math.max(0, f.warpCooldown - dt);
 
     if (f.weaponTimer > 0) {
       f.weaponTimer = Math.max(0, f.weaponTimer - dt);
@@ -456,13 +516,42 @@ export class GameEngine {
 
     f.vy = Math.min(MAX_FALL, f.vy + GRAVITY * dt);
     const prevBottom = f.y + f.h * 0.5;
+    const prevTop = f.y - f.h * 0.5;
 
+    // Horizontal integrate + solid wall blocking
     f.x = wrapX(f.x + f.vx * dt);
+    for (const p of this.platforms) {
+      if (!p.solid) continue;
+      if (f.y + f.h * 0.45 > p.y && f.y - f.h * 0.45 < p.y + p.h) {
+        if (this.overlapsPlatformX(f.x, f.w * 0.85, p)) {
+          const pCenter = wrapX(p.x + p.w * 0.5);
+          const side = wrapDeltaX(pCenter, f.x) >= 0 ? 1 : -1;
+          f.x = wrapX(side > 0 ? p.x + p.w + f.w * 0.44 : p.x - f.w * 0.44);
+          f.vx = 0;
+        }
+      }
+    }
+
+    // Vertical integrate
     f.y += f.vy * dt;
 
     if (f.y - f.h * 0.5 < 16) {
       f.y = 16 + f.h * 0.5;
       if (f.vy < 0) f.vy = 0;
+    }
+
+    // Solid ceiling bonk
+    if (f.vy < 0) {
+      for (const p of this.platforms) {
+        if (!p.solid) continue;
+        if (this.overlapsPlatformX(f.x, f.w * 0.78, p)) {
+          if (prevTop >= p.y + p.h - 10 && f.y - f.h * 0.5 <= p.y + p.h) {
+            f.y = p.y + p.h + f.h * 0.5;
+            f.vy = 0;
+            break;
+          }
+        }
+      }
     }
 
     const wasOnGround = f.onGround;
@@ -471,16 +560,65 @@ export class GameEngine {
 
     if (f.vy >= 0) {
       for (const p of this.platforms) {
+        if (p.crumble && p.crumbleState === 'broken') continue;
         if (this.overlapsPlatformX(f.x, f.w * 0.8, p)) {
           if (prevBottom <= p.y + 12 && newBottom >= p.y) {
             f.y = p.y - f.h * 0.5;
             f.vy = 0;
             f.onGround = true;
+            if (p.crumble && p.crumbleState === 'intact') {
+              p.crumbleState = 'shaking';
+              p.crumbleTimer = 0.62;
+            }
             if (!wasOnGround) {
               f.squashX = 1.22;
               f.squashY = 0.8;
               this.burstParticles(f.x, p.y, 4, 'dust', '#bda478');
             }
+            break;
+          }
+        }
+      }
+    }
+
+    // Steam Train interaction: rideable roof + hazardous locomotive front!
+    if (this.train) {
+      const tr = this.train;
+      const trCenter = wrapX(tr.x + tr.w * 0.5);
+      const dx = wrapDeltaX(trCenter, f.x);
+      if (Math.abs(dx) < tr.w * 0.5 + f.w * 0.4) {
+        // Ride on train roof
+        if (f.vy >= 0 && prevBottom <= tr.y + 14 && newBottom >= tr.y) {
+          f.y = tr.y - f.h * 0.5;
+          f.vy = 0;
+          f.onGround = true;
+          f.x = wrapX(f.x + tr.speed * dt);
+        } else if (f.y + f.h * 0.45 > tr.y + 8 && f.y - f.h * 0.45 < tr.y + tr.h) {
+          // Struck by locomotive body/cowcatcher!
+          if (f.invulnTimer <= 0) {
+            this.damageFighter(f, 1, 1, 380);
+            f.vy = -340;
+          }
+        }
+      }
+    }
+
+    // Swinging Warp Doors (Mario vs Luigi pipe-style quick flank!)
+    if (f.warpCooldown <= 0 && this.doors.length > 0) {
+      for (const d of this.doors) {
+        const dcx = d.x + d.w * 0.5;
+        const dcy = d.y + d.h * 0.5;
+        if (Math.abs(wrapDeltaX(f.x, dcx)) < 16 && Math.abs(f.y - dcy) < 26) {
+          const dest = this.doors.find((o) => o.id === d.pairId);
+          if (dest) {
+            d.swingTimer = 0.45;
+            dest.swingTimer = 0.45;
+            this.burstParticles(f.x, f.y, 8, 'dust', '#d8c094');
+            f.x = wrapX(dest.x + dest.w * 0.5);
+            f.y = dest.y + dest.h - f.h * 0.5 - 2;
+            f.warpCooldown = 1.45;
+            sound.playWarp();
+            this.burstParticles(f.x, f.y, 10, 'gold', d.color);
             break;
           }
         }
@@ -767,6 +905,27 @@ export class GameEngine {
 
       b.x = wrapX(b.x + b.vx * dt);
       b.y += b.vy * dt;
+
+      // Solid cover wall interaction: normal bullets clang/stop, dynamite bounces, sniper pierces!
+      if (b.kind !== 'sniper') {
+        let hitWall = false;
+        for (const p of this.platforms) {
+          if (!p.solid) continue;
+          if (b.y + b.radius >= p.y && b.y - b.radius <= p.y + p.h && this.overlapsPlatformX(b.x, b.radius * 2, p)) {
+            if (b.kind === 'dynamite') {
+              b.vx = -b.vx * 0.65;
+            } else {
+              hitWall = true;
+              this.burstParticles(b.x, b.y, 4, 'spark', '#e5c17b');
+            }
+            break;
+          }
+        }
+        if (hitWall) {
+          this.projectiles.splice(i, 1);
+          continue;
+        }
+      }
 
       // Dynamite floor bounce
       if (b.kind === 'dynamite' && b.vy > 0) {

@@ -9,12 +9,18 @@ export interface Platform {
   w: number;
   h: number;
   oneWay?: boolean;
-  style: 'mesa' | 'wood' | 'bridge';
+  /** Solid cover block: blocks horizontal movement, jumping from below, and bullets */
+  solid?: boolean;
+  style: 'mesa' | 'wood' | 'bridge' | 'chandelier' | 'awning' | 'brick';
   moveAxis?: 'x' | 'y';
   moveRange?: number;
   moveSpeed?: number;
   baseX: number;
   baseY: number;
+  /** Crumbling awning state */
+  crumble?: boolean;
+  crumbleState?: 'intact' | 'shaking' | 'broken';
+  crumbleTimer?: number;
 }
 
 export interface SpringBarrel {
@@ -24,6 +30,26 @@ export interface SpringBarrel {
   h: number;
   power: number;
   bounceTimer: number;
+}
+
+export interface WarpDoor {
+  id: string;
+  pairId: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  color: string;
+  swingTimer: number;
+}
+
+export interface SteamTrain {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  speed: number;
+  wheelPhase: number;
 }
 
 export interface TntBarrel {
@@ -47,10 +73,13 @@ export interface WeaponCrate {
 }
 
 export interface StageDef {
-  id: string;
+  id: 'wasteland' | 'saloon' | 'town';
   name: string;
-  platforms: Omit<Platform, 'baseX' | 'baseY'>[];
+  bgSrc: string;
+  platforms: Omit<Platform, 'baseX' | 'baseY' | 'crumbleState' | 'crumbleTimer'>[];
   springs: Omit<SpringBarrel, 'bounceTimer'>[];
+  doors: Omit<WarpDoor, 'swingTimer'>[];
+  train?: Omit<SteamTrain, 'wheelPhase'>;
   tnts: Vec2[];
   crates: Vec2[];
   goldSpawns: Vec2[];
@@ -82,6 +111,7 @@ export interface Fighter {
   invulnTimer: number;
   stunTimer: number;
   respawnTimer: number;
+  warpCooldown: number;
   hp: number;
   maxHp: number;
   lives: number; // -1 when infinite
