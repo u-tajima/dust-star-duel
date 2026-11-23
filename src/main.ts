@@ -40,10 +40,36 @@ function resizeCanvas(): void {
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-// Input state (keyboard + multi-touch pointers)
+// Input state (keyboard + rock-solid live TouchList + mouse fallback)
 const keyState = { left: false, right: false, jump: false, shoot: false };
 const touchState = { left: false, right: false, jump: false, shoot: false };
+const mouseState = { left: false, right: false, jump: false, shoot: false };
 let prevJump = false;
+
+const ctrlButtons: Record<keyof typeof touchState, HTMLElement> = {
+  left: document.getElementById('ctrl-left')!,
+  right: document.getElementById('ctrl-right')!,
+  jump: document.getElementById('ctrl-jump')!,
+  shoot: document.getElementById('ctrl-shoot')!,
+};
+
+function syncButtonVisuals(): void {
+  (Object.keys(ctrlButtons) as (keyof typeof touchState)[]).forEach((k) => {
+    ctrlButtons[k].classList.toggle('pressed', touchState[k] || mouseState[k]);
+  });
+}
+
+function clearAllInputs(): void {
+  keyState.left = keyState.right = keyState.jump = keyState.shoot = false;
+  touchState.left = touchState.right = touchState.jump = touchState.shoot = false;
+  mouseState.left = mouseState.right = mouseState.jump = mouseState.shoot = false;
+  syncButtonVisuals();
+}
+
+window.addEventListener('blur', clearAllInputs);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) clearAllInputs();
+});
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'ArrowLeft' || e.code === 'KeyA') keyState.left = true;
@@ -67,37 +93,67 @@ window.addEventListener('keyup', (e) => {
   }
 });
 
-function bindTouchButton(id: string, field: keyof typeof touchState): void {
-  const el = document.getElementById(id)!;
-  const activePointers = new Set<number>();
+// Recompute touch controls directly from OS live TouchList (impossible to stick, supports thumb-sliding L<->R)
+function recomputeTouches(touches: TouchList): void {
+  touchState.left = false;
+  touchState.right = false;
+  touchState.jump = false;
+  touchState.shoot = false;
 
-  const sync = () => {
-    const down = activePointers.size > 0;
-    touchState[field] = down;
-    el.classList.toggle('pressed', down);
+  const pad = 10; // forgiving hit margin around buttons
+  const rects = {
+    left: ctrlButtons.left.getBoundingClientRect(),
+    right: ctrlButtons.right.getBoundingClientRect(),
+    jump: ctrlButtons.jump.getBoundingClientRect(),
+    shoot: ctrlButtons.shoot.getBoundingClientRect(),
   };
 
-  el.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    sound.unlock();
-    el.setPointerCapture(e.pointerId);
-    activePointers.add(e.pointerId);
-    sync();
-  });
-
-  const release = (e: PointerEvent) => {
-    activePointers.delete(e.pointerId);
-    sync();
-  };
-  el.addEventListener('pointerup', release);
-  el.addEventListener('pointercancel', release);
-  el.addEventListener('lostpointercapture', release);
+  for (let i = 0; i < touches.length; i++) {
+    const t = touches[i];
+    const x = t.clientX;
+    const y = t.clientY;
+    for (const k of ['left', 'right', 'jump', 'shoot'] as const) {
+      const r = rects[k];
+      if (x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad) {
+        touchState[k] = true;
+      }
+    }
+  }
+  syncButtonVisuals();
 }
 
-bindTouchButton('ctrl-left', 'left');
-bindTouchButton('ctrl-right', 'right');
-bindTouchButton('ctrl-jump', 'jump');
-bindTouchButton('ctrl-shoot', 'shoot');
+const handleTouch = (e: TouchEvent) => {
+  if (game.mode !== 'playing') return;
+  if ((e.target as HTMLElement)?.closest('.controller-deck')) {
+    e.preventDefault();
+  }
+  if (e.type === 'touchstart') sound.unlock();
+  recomputeTouches(e.touches);
+};
+
+window.addEventListener('touchstart', handleTouch, { passive: false });
+window.addEventListener('touchmove', handleTouch, { passive: false });
+window.addEventListener('touchend', handleTouch, { passive: false });
+window.addEventListener('touchcancel', () => {
+  touchState.left = touchState.right = touchState.jump = touchState.shoot = false;
+  syncButtonVisuals();
+});
+
+// Desktop mouse support on touch buttons
+(Object.keys(ctrlButtons) as (keyof typeof mouseState)[]).forEach((field) => {
+  const el = ctrlButtons[field];
+  el.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    sound.unlock();
+    mouseState[field] = true;
+    syncButtonVisuals();
+  });
+});
+
+window.addEventListener('mouseup', () => {
+  mouseState.left = mouseState.right = mouseState.jump = mouseState.shoot = false;
+  syncButtonVisuals();
+});
 
 // Stage picker
 stagePicker.addEventListener('click', (e) => {
@@ -111,6 +167,7 @@ stagePicker.addEventListener('click', (e) => {
 });
 
 function showTitle(): void {
+  clearAllInputs();
   game.mode = 'title';
   game.loadStage(game.stageIndex);
   overlayTitle.classList.remove('hidden');
@@ -120,6 +177,7 @@ function showTitle(): void {
 }
 
 function startDuel(): void {
+  clearAllInputs();
   sound.unlock();
   game.startMatch(game.stageIndex);
   overlayTitle.classList.add('hidden');
@@ -186,13 +244,13 @@ function loop(ts: number): void {
   const dt = (ts - lastTs) / 1000;
   lastTs = ts;
 
-  const jumpNow = keyState.jump || touchState.jump;
+  const jumpNow = keyState.jump || touchState.jump || mouseState.jump;
   const input: InputState = {
-    left: keyState.left || touchState.left,
-    right: keyState.right || touchState.right,
+    left: keyState.left || touchState.left || mouseState.left,
+    right: keyState.right || touchState.right || mouseState.right,
     jump: jumpNow,
     jumpPressed: jumpNow && !prevJump,
-    shoot: keyState.shoot || touchState.shoot,
+    shoot: keyState.shoot || touchState.shoot || mouseState.shoot,
   };
   prevJump = jumpNow;
 
