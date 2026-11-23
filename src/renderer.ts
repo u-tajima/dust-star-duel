@@ -862,13 +862,16 @@ export class SketchRenderer {
     const me = game.localPlayer === 'p1' ? game.fighters[0] : game.fighters[1];
     const rival = game.localPlayer === 'p1' ? game.fighters[1] : game.fighters[0];
     const rivalColor = rival.id === 'p1' ? '#b23b2a' : '#354f70';
+    const rivalIsWanted = game.getWantedId() === rival.id;
 
     const targetGold = game.golds[0];
     if (targetGold) {
       this.drawEdgePointer(ctx, game, targetGold.x, targetGold.y, 'gold', '#f2b830');
     }
 
+    // Only reveal off-screen rival direction when the rival is WANTED!
     if (
+      rivalIsWanted &&
       rival.respawnTimer <= 0 &&
       (Math.abs(wrapDeltaX(me.x, rival.x)) > VIEW_W * 0.45 || Math.abs(rival.y - me.y) > VIEW_H * 0.45)
     ) {
@@ -983,18 +986,30 @@ export class SketchRenderer {
       ctx.strokeRect(rx + g.x * sx - 3, ry + g.y * sy - 2, 6, 4);
     }
 
-    // Rival & Player dots (bright white ring highlights local player)
+    // Mini-radar dots: always show local player; only reveal rival when WANTED!
     const [p1, p2] = game.fighters;
+    const wantedId = game.getWantedId();
     for (const f of [p2, p1]) {
       if (f.respawnTimer > 0) continue;
       const isMe = f.id === game.localPlayer;
+      if (!isMe && wantedId !== f.id) continue;
+
+      const fx = rx + f.x * sx;
+      const fy = ry + f.y * sy;
       ctx.fillStyle = f.id === 'p1' ? '#b23b2a' : '#354f70';
       ctx.beginPath();
-      ctx.arc(rx + f.x * sx, ry + f.y * sy, isMe ? 3.3 : 2.7, 0, Math.PI * 2);
+      ctx.arc(fx, fy, isMe ? 3.3 : 3.2, 0, Math.PI * 2);
       ctx.fill();
       if (isMe) {
         ctx.strokeStyle = '#fff5dc';
         ctx.lineWidth = 1.2;
+        ctx.stroke();
+      } else {
+        // Pulsing bounty ring for WANTED rival
+        ctx.strokeStyle = '#f2be3d';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.arc(fx, fy, 4.5 + Math.sin(game.time * 8) * 1.2, 0, Math.PI * 2);
         ctx.stroke();
       }
     }
