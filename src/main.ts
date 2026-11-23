@@ -1,4 +1,5 @@
 import './style.css';
+import QRCode from 'qrcode';
 import { sound } from './audio';
 import { GameEngine } from './game';
 import { NetManager, type NetPacket } from './net';
@@ -10,6 +11,7 @@ const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 
 const overlayTitle = document.getElementById('overlay-title')!;
+const overlayLobby = document.getElementById('overlay-lobby')!;
 const overlayResult = document.getElementById('overlay-result')!;
 const resultTitle = document.getElementById('result-title')!;
 const resultScore = document.getElementById('result-score')!;
@@ -21,15 +23,22 @@ const p2LivesEl = document.getElementById('p2-lives')!;
 const p1GearEl = document.getElementById('p1-gear')!;
 const p2GearEl = document.getElementById('p2-gear')!;
 const stagePicker = document.getElementById('stage-picker')!;
-const modePicker = document.getElementById('mode-picker')!;
 const goldPicker = document.getElementById('gold-picker')!;
 const livesPicker = document.getElementById('lives-picker')!;
-const onlineBar = document.getElementById('online-bar')!;
+const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
+const btnOpenLobby = document.getElementById('btn-open-lobby')!;
+const btnLobbyBack = document.getElementById('btn-lobby-back')!;
 const btnCreateRoom = document.getElementById('btn-create-room')!;
+const hostInviteEl = document.getElementById('host-invite')!;
+const lobbyQrCanvas = document.getElementById('lobby-qr') as HTMLCanvasElement;
+const inviteCodeEl = document.getElementById('invite-code')!;
+const btnCopyLink = document.getElementById('btn-copy-link')!;
+const btnShareLink = document.getElementById('btn-share-link')!;
+const btnOnlineStart = document.getElementById('btn-online-start') as HTMLButtonElement;
 const btnJoinRoom = document.getElementById('btn-join-room')!;
 const inputRoomCode = document.getElementById('input-room-code') as HTMLInputElement;
+const joinHintEl = document.getElementById('join-hint')!;
 const roomStatusEl = document.getElementById('room-status')!;
-const btnStart = document.getElementById('btn-start') as HTMLButtonElement;
 const btnRematch = document.getElementById('btn-rematch')!;
 const btnToTitle = document.getElementById('btn-to-title')!;
 const btnHome = document.getElementById('btn-home')!;
@@ -39,26 +48,33 @@ const iconSoundOff = document.getElementById('icon-sound-off')!;
 const controllerDeck = document.getElementById('controller-deck')!;
 
 const selectedRules: MatchRules = { targetGold: 5, maxLives: 3 };
-let onlineTabActive = false;
 let remoteP2Input: InputState = { left: false, right: false, jump: false, jumpPressed: false, shoot: false };
 let netSyncAccum = 0;
 
 const game = new GameEngine();
 const renderer = new SketchRenderer();
 
-function updateStartButtonState(): void {
-  if (!onlineTabActive) {
-    btnStart.disabled = false;
-    btnStart.textContent = 'DUEL';
-  } else if (net.role === 'host' && net.connected) {
-    btnStart.disabled = false;
-    btnStart.textContent = 'DUEL';
-  } else if (net.role === 'guest' && net.connected) {
-    btnStart.disabled = true;
-    btnStart.textContent = 'READY';
+if ('share' in navigator) {
+  btnShareLink.classList.remove('hidden');
+}
+
+function getInviteUrl(code: string): string {
+  const url = new URL(window.location.href);
+  url.searchParams.set('room', code);
+  return url.toString();
+}
+
+function updateLobbyState(): void {
+  if (net.role === 'host' && net.connected) {
+    btnOnlineStart.disabled = false;
+    btnOnlineStart.textContent = 'DUEL';
   } else {
-    btnStart.disabled = true;
-    btnStart.textContent = 'WAIT';
+    btnOnlineStart.disabled = true;
+    btnOnlineStart.textContent = 'WAIT';
+  }
+
+  if (net.role === 'guest' && net.connected) {
+    joinHintEl.textContent = 'READY - WAITING HOST';
   }
 }
 
@@ -67,7 +83,10 @@ const net = new NetManager({
     roomStatusEl.textContent = status;
     roomStatusEl.classList.remove('hidden');
     roomStatusEl.classList.toggle('ready', connected);
-    updateStartButtonState();
+    if (net.role === 'guest') {
+      joinHintEl.textContent = connected ? 'READY - WAITING HOST' : status;
+    }
+    updateLobbyState();
   },
   onPacket(pkt: NetPacket) {
     if (pkt.type === 'input' && net.role === 'host') {
@@ -80,17 +99,18 @@ const net = new NetManager({
       game.localPlayer = 'p2';
       game.startMatch(pkt.stageIndex, pkt.rules);
       overlayTitle.classList.add('hidden');
+      overlayLobby.classList.add('hidden');
       overlayResult.classList.add('hidden');
       controllerDeck.classList.remove('hidden');
       syncHUD(true);
     } else if (pkt.type === 'state' && net.role === 'guest') {
       game.applySnapshot(pkt.snap as ReturnType<GameEngine['exportSnapshot']>, 1 / 30);
     } else if (pkt.type === 'rematch' && net.role === 'host') {
-      startDuel();
+      startOnlineDuel();
     }
   },
   onDisconnect() {
-    updateStartButtonState();
+    updateLobbyState();
     if (game.mode === 'playing') {
       showTitle();
     }
@@ -307,35 +327,74 @@ livesPicker.addEventListener('click', (e) => {
   });
 });
 
-// Mode / Online room UI
-modePicker.addEventListener('click', (e) => {
-  const target = (e.target as HTMLElement).closest<HTMLButtonElement>('.mini-chip');
-  if (!target) return;
-  onlineTabActive = target.dataset.net === 'online';
-  modePicker.querySelectorAll('.mini-chip').forEach((chip) => {
-    chip.classList.toggle('active', chip === target);
-  });
-  onlineBar.classList.toggle('hidden', !onlineTabActive);
-  if (!onlineTabActive) {
-    net.disconnect();
-    roomStatusEl.classList.add('hidden');
+// Dedicated Matchmaking Lobby handlers
+function openLobby(): void {
+  clearAllInputs();
+  overlayTitle.classList.add('hidden');
+  overlayResult.classList.add('hidden');
+  overlayLobby.classList.remove('hidden');
+  controllerDeck.classList.add('hidden');
+  updateLobbyState();
+}
+
+btnOpenLobby.addEventListener('click', openLobby);
+
+btnLobbyBack.addEventListener('click', () => {
+  net.disconnect();
+  hostInviteEl.classList.add('hidden');
+  roomStatusEl.classList.add('hidden');
+  joinHintEl.textContent = '';
+  // Clear ?room=... query if present
+  if (window.location.search.includes('room=')) {
+    const clean = new URL(window.location.href);
+    clean.searchParams.delete('room');
+    window.history.replaceState({}, '', clean.toString());
   }
-  updateStartButtonState();
+  showTitle();
 });
 
 btnCreateRoom.addEventListener('click', () => {
   const code = net.createRoom();
-  inputRoomCode.value = code;
+  inviteCodeEl.textContent = code;
+  hostInviteEl.classList.remove('hidden');
+  joinHintEl.textContent = '';
+
+  const inviteUrl = getInviteUrl(code);
+  QRCode.toCanvas(
+    lobbyQrCanvas,
+    inviteUrl,
+    {
+      width: 128,
+      margin: 1,
+      color: { dark: '#2b2016', light: '#fdf6e6' },
+    },
+    () => {}
+  );
+});
+
+btnCopyLink.addEventListener('click', () => {
+  if (!net.roomCode) return;
+  const url = getInviteUrl(net.roomCode);
+  navigator.clipboard?.writeText(url).catch(() => {});
+  btnCopyLink.textContent = 'COPIED';
+  setTimeout(() => {
+    btnCopyLink.textContent = 'COPY LINK';
+  }, 1400);
+});
+
+btnShareLink.addEventListener('click', () => {
+  if (!net.roomCode || !navigator.share) return;
+  navigator
+    .share({
+      title: 'GOLD RUSH DUEL',
+      url: getInviteUrl(net.roomCode),
+    })
+    .catch(() => {});
 });
 
 btnJoinRoom.addEventListener('click', () => {
+  hostInviteEl.classList.add('hidden');
   net.joinRoom(inputRoomCode.value);
-});
-
-roomStatusEl.addEventListener('click', () => {
-  if (net.roomCode && navigator.clipboard) {
-    navigator.clipboard.writeText(net.roomCode).catch(() => {});
-  }
 });
 
 function showTitle(): void {
@@ -344,33 +403,48 @@ function showTitle(): void {
   game.mode = 'title';
   game.loadStage(game.stageIndex);
   overlayTitle.classList.remove('hidden');
+  overlayLobby.classList.add('hidden');
   overlayResult.classList.add('hidden');
   controllerDeck.classList.add('hidden');
-  updateStartButtonState();
   syncHUD(true);
 }
 
-function startDuel(): void {
-  if (onlineTabActive && net.role === 'guest') return;
+function startSoloDuel(): void {
+  net.disconnect();
   clearAllInputs();
   sound.unlock();
   game.localPlayer = 'p1';
   game.startMatch(game.stageIndex, selectedRules);
-  if (net.role === 'host' && net.connected) {
-    net.send({ type: 'start', stageIndex: game.stageIndex, rules: selectedRules });
-  }
   overlayTitle.classList.add('hidden');
+  overlayLobby.classList.add('hidden');
   overlayResult.classList.add('hidden');
   controllerDeck.classList.remove('hidden');
   syncHUD(true);
 }
 
-btnStart.addEventListener('click', startDuel);
+function startOnlineDuel(): void {
+  if (net.role !== 'host' || !net.connected) return;
+  clearAllInputs();
+  sound.unlock();
+  game.localPlayer = 'p1';
+  game.startMatch(game.stageIndex, selectedRules);
+  net.send({ type: 'start', stageIndex: game.stageIndex, rules: selectedRules });
+  overlayTitle.classList.add('hidden');
+  overlayLobby.classList.add('hidden');
+  overlayResult.classList.add('hidden');
+  controllerDeck.classList.remove('hidden');
+  syncHUD(true);
+}
+
+btnStart.addEventListener('click', startSoloDuel);
+btnOnlineStart.addEventListener('click', startOnlineDuel);
 btnRematch.addEventListener('click', () => {
   if (net.role === 'guest' && net.connected) {
     net.send({ type: 'rematch' });
+  } else if (net.role === 'host' && net.connected) {
+    startOnlineDuel();
   } else {
-    startDuel();
+    startSoloDuel();
   }
 });
 btnToTitle.addEventListener('click', showTitle);
@@ -432,6 +506,15 @@ function syncHUD(force = false): void {
 }
 
 showTitle();
+
+// Auto-open lobby & join if opened via invite link / QR code (?room=XXXX)
+const urlRoom = new URLSearchParams(window.location.search).get('room');
+if (urlRoom && /^[A-Za-z0-9]{4}$/.test(urlRoom.trim())) {
+  const code = urlRoom.trim().toUpperCase();
+  openLobby();
+  inputRoomCode.value = code;
+  net.joinRoom(code);
+}
 
 // Main 60fps loop
 let lastTs = performance.now();
