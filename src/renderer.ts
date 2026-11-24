@@ -37,6 +37,20 @@ export class SketchRenderer {
   private propCrateReady = false;
   private propBadge: HTMLImageElement;
   private propBadgeReady = false;
+  private tileBrickWall: HTMLImageElement;
+  private tileBrickWallReady = false;
+  private tileWoodWall: HTMLImageElement;
+  private tileWoodWallReady = false;
+  private tileRockWall: HTMLImageElement;
+  private tileRockWallReady = false;
+  private tileAwning: HTMLImageElement;
+  private tileAwningReady = false;
+  private propChandelier: HTMLImageElement;
+  private propChandelierReady = false;
+  private propDoor: HTMLImageElement;
+  private propDoorReady = false;
+  private propTrain: HTMLImageElement;
+  private propTrainReady = false;
 
   constructor() {
     for (const st of STAGES) {
@@ -57,6 +71,13 @@ export class SketchRenderer {
     this.propTnt = this.loadImg('./assets/prop-tnt.png', () => (this.propTntReady = true));
     this.propCrate = this.loadImg('./assets/prop-crate.png', () => (this.propCrateReady = true));
     this.propBadge = this.loadImg('./assets/prop-badge.png', () => (this.propBadgeReady = true));
+    this.tileBrickWall = this.loadImg('./assets/tile-brick-wall.png', () => (this.tileBrickWallReady = true));
+    this.tileWoodWall = this.loadImg('./assets/tile-wood-wall.png', () => (this.tileWoodWallReady = true));
+    this.tileRockWall = this.loadImg('./assets/tile-rock-wall.png', () => (this.tileRockWallReady = true));
+    this.tileAwning = this.loadImg('./assets/tile-awning.png', () => (this.tileAwningReady = true));
+    this.propChandelier = this.loadImg('./assets/prop-chandelier.png', () => (this.propChandelierReady = true));
+    this.propDoor = this.loadImg('./assets/prop-door.png', () => (this.propDoorReady = true));
+    this.propTrain = this.loadImg('./assets/prop-train.png', () => (this.propTrainReady = true));
   }
 
   private loadImg(src: string, onLoad: () => void): HTMLImageElement {
@@ -306,18 +327,18 @@ export class SketchRenderer {
         ctx.restore();
         return;
       }
-      const shakeX = p.crumbleState === 'shaking' ? (Math.random() - 0.5) * 4 : 0;
+      const shakeX = p.crumbleState === 'shaking' ? (Math.random() - 0.5) * 4.5 : 0;
       ctx.save();
       ctx.translate(shakeX, 0);
-      const stripes = Math.max(4, Math.floor(p.w / 18));
-      const sw = p.w / stripes;
-      for (let i = 0; i < stripes; i++) {
-        ctx.fillStyle = i % 2 === 0 ? '#b24532' : '#f2dfc0';
-        ctx.fillRect(sx + i * sw, sy, sw + 0.5, p.h + 4);
+      if (this.tileAwningReady) {
+        ctx.drawImage(this.tileAwning, sx - 6, sy - 6, p.w + 12, p.h + 52);
+      } else {
+        ctx.fillStyle = '#b24532';
+        ctx.fillRect(sx, sy, p.w, p.h + 4);
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sx, sy, p.w, p.h + 4);
       }
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(sx, sy, p.w, p.h + 4);
       ctx.restore();
       return;
     }
@@ -326,36 +347,25 @@ export class SketchRenderer {
     if (p.style === 'chandelier') {
       const cx = sx + p.w * 0.5;
       ctx.save();
-      // Hanging iron chain to ceiling
       ctx.strokeStyle = INK;
       ctx.lineWidth = 2.4;
       ctx.setLineDash([4, 3]);
       ctx.beginPath();
       ctx.moveTo(cx, -40);
-      ctx.lineTo(cx, sy);
+      ctx.lineTo(cx, sy - 42);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Brass ornate beam
-      ctx.fillStyle = '#c89638';
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(sx, sy, p.w, 13, 4);
-      ctx.fill();
-      ctx.stroke();
-
-      // Flickering candles along chandelier
-      const candleCount = 5;
-      for (let i = 0; i < candleCount; i++) {
-        const px = sx + 14 + (i * (p.w - 28)) / (candleCount - 1);
-        ctx.fillStyle = '#fff5d6';
-        ctx.fillRect(px - 2, sy - 8, 4, 8);
-        ctx.strokeRect(px - 2, sy - 8, 4, 8);
-        ctx.fillStyle = '#ffbe3d';
+      if (this.propChandelierReady) {
+        ctx.drawImage(this.propChandelier, sx - 8, sy - 76, p.w + 16, 112);
+      } else {
+        ctx.fillStyle = '#c89638';
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(px, sy - 11, 3.2, 0, Math.PI * 2);
+        ctx.roundRect(sx, sy, p.w, 13, 4);
         ctx.fill();
+        ctx.stroke();
       }
       ctx.restore();
       return;
@@ -363,28 +373,27 @@ export class SketchRenderer {
 
     // 3. Solid cover pillars/walls (brick, wood, mesa cover blocks)
     if (p.solid) {
+      const wallImg =
+        p.style === 'brick'
+          ? this.tileBrickWallReady
+            ? this.tileBrickWall
+            : null
+          : p.style === 'mesa'
+            ? this.tileRockWallReady
+              ? this.tileRockWall
+              : null
+            : this.tileWoodWallReady
+              ? this.tileWoodWall
+              : null;
+
+      if (wallImg) {
+        ctx.drawImage(wallImg, sx - 3, sy - 3, p.w + 6, p.h + 6);
+        return;
+      }
+
       ctx.save();
       ctx.fillStyle = p.style === 'brick' ? '#9f5e42' : p.style === 'mesa' ? '#bf905c' : '#8d6239';
       ctx.fillRect(sx, sy, p.w, p.h);
-
-      ctx.strokeStyle = 'rgba(43, 32, 22, 0.35)';
-      ctx.lineWidth = 1;
-      if (p.style === 'brick') {
-        for (let y = sy + 12; y < sy + p.h; y += 12) {
-          ctx.beginPath();
-          ctx.moveTo(sx, y);
-          ctx.lineTo(sx + p.w, y);
-          ctx.stroke();
-        }
-      } else {
-        for (let y = sy + 10; y < sy + p.h; y += 14) {
-          ctx.beginPath();
-          ctx.moveTo(sx + 3, y);
-          ctx.lineTo(sx + p.w - 3, y - 4);
-          ctx.stroke();
-        }
-      }
-
       ctx.strokeStyle = INK;
       ctx.lineWidth = 2.2;
       ctx.strokeRect(sx, sy, p.w, p.h);
@@ -445,107 +454,57 @@ export class SketchRenderer {
   private drawDoor(ctx: CanvasRenderingContext2D, game: GameEngine, d: WarpDoor): void {
     const sy = d.y - game.camY;
     if (sy + d.h < -24 || sy > VIEW_H + 24) return;
-    const swing = d.swingTimer > 0 ? Math.sin((d.swingTimer / 0.45) * Math.PI) * 0.45 : 0;
+    const swing = d.swingTimer > 0 ? Math.sin((d.swingTimer / 0.45) * Math.PI) * 0.14 : 0;
 
     for (let shift = -WORLD_W; shift <= WORLD_W; shift += WORLD_W) {
       const sx = d.x + shift - game.camX;
       if (sx + d.w < -24 || sx > VIEW_W + 24) continue;
 
       ctx.save();
-      // Archway frame
-      ctx.fillStyle = '#332214';
+      ctx.translate(sx + d.w * 0.5, sy + d.h);
+      ctx.scale(1 - swing, 1 + swing * 0.4);
+      if (this.propDoorReady) {
+        ctx.drawImage(this.propDoor, -d.w * 0.68, -d.h - 4, d.w * 1.36, d.h + 6);
+      } else {
+        ctx.fillStyle = '#332214';
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 2;
+        ctx.fillRect(-d.w * 0.5, -d.h, d.w, d.h);
+        ctx.strokeRect(-d.w * 0.5, -d.h, d.w, d.h);
+      }
+      // Subtle colored pair gem at top of arch so linked doors are unmistakable
+      ctx.fillStyle = d.color;
       ctx.strokeStyle = INK;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.roundRect(sx, sy, d.w, d.h, [10, 10, 0, 0]);
+      ctx.arc(0, -d.h + 5, 4.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-
-      // Colored pair header banner (identifies linked warp doors at a glance!)
-      ctx.fillStyle = d.color;
-      ctx.fillRect(sx + 3, sy + 3, d.w - 6, 9);
-      ctx.strokeRect(sx + 3, sy + 3, d.w - 6, 9);
-
-      // Swinging saloon batwing leaves
-      const leafW = (d.w - 8) * 0.5 * (1 - swing);
-      ctx.fillStyle = '#b9864c';
-      ctx.fillRect(sx + 4, sy + 16, leafW, d.h - 24);
-      ctx.strokeRect(sx + 4, sy + 16, leafW, d.h - 24);
-
-      ctx.fillRect(sx + d.w - 4 - leafW, sy + 16, leafW, d.h - 24);
-      ctx.strokeRect(sx + d.w - 4 - leafW, sy + 16, leafW, d.h - 24);
       ctx.restore();
     }
   }
 
   private drawTrain(ctx: CanvasRenderingContext2D, game: GameEngine, tr: SteamTrain): void {
     const sy = tr.y - game.camY;
-    if (sy + tr.h < -32 || sy > VIEW_H + 32) return;
+    if (sy + tr.h < -40 || sy > VIEW_H + 40) return;
 
     for (let shift = -WORLD_W; shift <= WORLD_W; shift += WORLD_W) {
       const sx = tr.x + shift - game.camX;
-      if (sx + tr.w < -40 || sx > VIEW_W + 40) continue;
+      if (sx + tr.w < -48 || sx > VIEW_W + 48) continue;
 
       ctx.save();
-      // Flatcar / Caboose body (left half)
-      ctx.fillStyle = '#8b4a2b';
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 2.2;
-      ctx.fillRect(sx, sy + 4, tr.w * 0.52, tr.h - 16);
-      ctx.strokeRect(sx, sy + 4, tr.w * 0.52, tr.h - 16);
-
-      // Caboose windows
-      ctx.fillStyle = '#f8e2a6';
-      ctx.fillRect(sx + 16, sy + 16, 22, 16);
-      ctx.strokeRect(sx + 16, sy + 16, 22, 16);
-      ctx.fillRect(sx + 54, sy + 16, 22, 16);
-      ctx.strokeRect(sx + 54, sy + 16, 22, 16);
-
-      // Iron Locomotive boiler (right half)
-      const locX = sx + tr.w * 0.52;
-      const locW = tr.w * 0.44;
-      ctx.fillStyle = '#3d3834';
-      ctx.fillRect(locX, sy + 10, locW, tr.h - 22);
-      ctx.strokeRect(locX, sy + 10, locW, tr.h - 22);
-
-      // Brass boiler bands
-      ctx.fillStyle = '#d9a438';
-      ctx.fillRect(locX + 18, sy + 10, 5, tr.h - 22);
-      ctx.fillRect(locX + 52, sy + 10, 5, tr.h - 22);
-
-      // Smokestack
-      ctx.fillStyle = '#2d2621';
-      ctx.beginPath();
-      ctx.moveTo(locX + locW - 28, sy + 10);
-      ctx.lineTo(locX + locW - 34, sy - 12);
-      ctx.lineTo(locX + locW - 14, sy - 12);
-      ctx.lineTo(locX + locW - 18, sy + 10);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Spiked iron cowcatcher (front hazard!)
-      ctx.fillStyle = '#b23b2a';
-      ctx.beginPath();
-      ctx.moveTo(locX + locW, sy + 24);
-      ctx.lineTo(locX + locW + 16, sy + tr.h - 8);
-      ctx.lineTo(locX + locW, sy + tr.h - 8);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Spinning iron wheels
-      for (const wx of [sx + 26, sx + 82, locX + 24, locX + 66]) {
-        const wy = sy + tr.h - 10;
-        ctx.fillStyle = '#4e443c';
-        ctx.beginPath();
-        ctx.arc(wx, wy, 10, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(wx + Math.cos(tr.wheelPhase) * 8, wy + Math.sin(tr.wheelPhase) * 8);
-        ctx.lineTo(wx - Math.cos(tr.wheelPhase) * 8, wy - Math.sin(tr.wheelPhase) * 8);
-        ctx.stroke();
+      if (this.propTrainReady) {
+        // Flip horizontally so locomotive faces right (matching tr.speed > 0)
+        const bob = Math.sin(tr.wheelPhase * 2) * 1.2;
+        ctx.translate(sx + tr.w * 0.5, sy + tr.h + bob);
+        ctx.scale(-1, 1);
+        ctx.drawImage(this.propTrain, -tr.w * 0.56, -tr.h - 26, tr.w * 1.12, tr.h + 28);
+      } else {
+        ctx.fillStyle = '#3d3834';
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 2.2;
+        ctx.fillRect(sx, sy + 6, tr.w, tr.h - 14);
+        ctx.strokeRect(sx, sy + 6, tr.w, tr.h - 14);
       }
       ctx.restore();
     }

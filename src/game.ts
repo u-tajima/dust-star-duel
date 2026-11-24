@@ -75,6 +75,11 @@ export class GameEngine {
   private lastGoldSpawnIdx = -1;
   private aiDecisionTimer = 0;
   private aiJumpHold = 0;
+  private aiStuckTimer = 0;
+  private aiLastX = 0;
+  private aiLastY = 0;
+  private aiEscapeTimer = 0;
+  private aiEscapeDir: 1 | -1 = 1;
 
   constructor() {
     this.fighters = [this.createFighter('p1', 200, 600), this.createFighter('p2', 900, 600)];
@@ -1157,9 +1162,37 @@ export class GameEngine {
       return out;
     }
 
+    // Detect stuck / jumping in place under a high target or against a solid wall
+    const movedDist = Math.abs(wrapDeltaX(this.aiLastX, ai.x)) + Math.abs(ai.y - this.aiLastY);
+    if (movedDist < 22) {
+      this.aiStuckTimer += dt;
+    } else {
+      this.aiStuckTimer = Math.max(0, this.aiStuckTimer - dt * 2);
+      this.aiLastX = ai.x;
+      this.aiLastY = ai.y;
+    }
+
+    if (this.aiStuckTimer > 0.75) {
+      this.aiStuckTimer = 0;
+      this.aiEscapeTimer = 0.85;
+      this.aiEscapeDir = Math.random() < 0.5 ? 1 : -1;
+    }
+
+    if (this.aiEscapeTimer > 0) {
+      this.aiEscapeTimer -= dt;
+      out.left = this.aiEscapeDir < 0;
+      out.right = this.aiEscapeDir > 0;
+      if (ai.onGround && Math.random() < 0.25) {
+        out.jump = true;
+        out.jumpPressed = true;
+        this.aiJumpHold = 0.3;
+      }
+      return out;
+    }
+
     // Priority: dropped gold > nearby weapon crate (if unarmed) > main gold > player
-    let targetX = p1.x;
-    let targetY = p1.y;
+    let goalX = p1.x;
+    let goalY = p1.y;
 
     const dropped = this.golds.find((g) => g.dropped && g.pickupDelay <= 0.15);
     const mainGold = this.golds.find((g) => !g.dropped);
@@ -1171,30 +1204,101 @@ export class GameEngine {
         : undefined;
 
     if (dropped) {
-      targetX = dropped.x;
-      targetY = dropped.y;
+      goalX = dropped.x;
+      goalY = dropped.y;
     } else if (nearbyCrate) {
-      targetX = nearbyCrate.x + nearbyCrate.w * 0.5;
-      targetY = nearbyCrate.y;
+      goalX = nearbyCrate.x + nearbyCrate.w * 0.5;
+      goalY = nearbyCrate.y;
     } else if (mainGold) {
-      targetX = mainGold.x;
-      targetY = mainGold.y;
+      goalX = mainGold.x;
+      goalY = mainGold.y;
     }
 
-    const dx = wrapDeltaX(ai.x, targetX);
-    const dy = targetY - ai.y;
+    // Multi-tier climbing waypoint: if goal is higher than a single jump (~110px),
+    // head for the best reachable stepping-stone (spring barrel, warp door, or intermediate ledge)
+    // instead of standing directly underneath the goal jumping forever!
+    let navX = goalX;
+    let navY = goalY;
 
-    if (dx > 16) out.right = true;
-    else if (dx < -16) out.left = true;
+    if (goalY < ai.y - 105) {
+      let bestScore = Infinity;
 
+      // Option A: Spring barrels on roughly the current floor
+      for (const s of this.springs) {
+        if (Math.abs(s.y - ai.y) < 85) {
+          const d = Math.abs(wrapDeltaX(ai.x, s.x + s.w * 0.5));
+          const score = d * 0.85;
+          if (score < bestScore) {
+            bestScore = score;
+            navX = s.x + s.w * 0.5;
+            navY = s.y;
+          }
+        }
+      }
+
+      // Option B: Warp doors whose paired exit is significantly closer to goalY
+      if (ai.warpCooldown <= 0) {
+        for (const d of this.doors) {
+          if (Math.abs(d.y + d.h - (ai.y + ai.h * 0.5)) < 70) {
+            const dest = this.doors.find((o) => o.id === d.pairId);
+            if (dest && Math.abs(dest.y - goalY) < Math.abs(ai.y - goalY) - 100) {
+              const dist = Math.abs(wrapDeltaX(ai.x, d.x + d.w * 0.5));
+              const score = dist * 0.75;
+              if (score < bestScore) {
+                bestScore = score;
+                navX = d.x + d.w * 0.5;
+                navY = d.y + d.h * 0.5;
+              }
+            }
+          }
+        }
+      }
+
+      // Option C: Reachable intermediate platform (35..155px above current feet)
+      const aiFeet = ai.y + ai.h * 0.5;
+      for (const p of this.platforms) {
+        if (p.solid || (p.crumble && p.crumbleState === 'broken')) continue;
+        const climbH = aiFeet - p.y;
+        if (climbH >= 30 && climbH <= 160) {
+          const pCenter = wrapX(p.x + p.w * 0.5);
+          const distFromAi = Math.abs(wrapDeltaX(ai.x, pCenter));
+          const distToGoal = Math.abs(wrapDeltaX(pCenter, goalX));
+          // Prefer ledges close to AI that also lead toward the goal
+          const score = distFromAi + distToGoal * 0.35;
+          if (score < bestScore) {
+            bestScore = score;
+            // Aim slightly inside the platform edge closest to AI
+            const edgeOffset = Math.min(p.w * 0.3, 45);
+            const towardAi = wrapDeltaX(pCenter, ai.x) >= 0 ? edgeOffset : -edgeOffset;
+            navX = wrapX(pCenter + towardAi);
+            navY = p.y - 20;
+          }
+        }
+      }
+    }
+
+    const dx = wrapDeltaX(ai.x, navX);
+    const dy = navY - ai.y;
+
+    if (dx > 14) out.right = true;
+    else if (dx < -14) out.left = true;
+
+    // Jump when approaching a higher ledge, facing a solid wall, or dodging
     if (ai.onGround) {
-      const wantsUp = dy < -45;
-      const randomHop = this.aiDecisionTimer <= 0 && Math.random() < 0.25;
-      if (wantsUp || randomHop) {
+      const solidAhead = this.platforms.some(
+        (p) =>
+          p.solid &&
+          ai.y + ai.h * 0.4 > p.y &&
+          ai.y - ai.h * 0.4 < p.y + p.h &&
+          Math.abs(wrapDeltaX(wrapX(ai.x + ai.facing * 26), wrapX(p.x + p.w * 0.5))) < p.w * 0.5 + 16
+      );
+      const wantsUp = dy < -32 && Math.abs(dx) < 150;
+      const randomHop = this.aiDecisionTimer <= 0 && Math.random() < 0.16;
+      if (solidAhead || wantsUp || randomHop) {
         out.jump = true;
         out.jumpPressed = true;
-        this.aiJumpHold = 0.28;
-        this.aiDecisionTimer = 0.42;
+        this.aiJumpHold = 0.3;
+        this.aiDecisionTimer = 0.45;
       }
     }
 
