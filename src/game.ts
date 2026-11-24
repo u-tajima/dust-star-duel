@@ -643,9 +643,11 @@ export class GameEngine {
       }
     }
 
+    // Pit fall counts as KO (drops gold, decrements lives, respawns cleanly)
     if (f.y - f.h * 0.5 > WORLD_H + 30) {
-      f.y = 32;
-      f.vy = 120;
+      f.hp = 0;
+      f.y = WORLD_H - 28;
+      this.koFighter(f, -f.facing);
     }
   }
 
@@ -1283,8 +1285,33 @@ export class GameEngine {
     if (dx > 14) out.right = true;
     else if (dx < -14) out.left = true;
 
-    // Jump when approaching a higher ledge, facing a solid wall, or dodging
+    // Mid-air pit rescue: if falling low over a chasm, steer toward nearest ground edge!
+    if (!ai.onGround && ai.vy > 60 && ai.y > 590) {
+      const hasGroundBelow = this.platforms.some((p) => p.y >= 700 && this.overlapsPlatformX(ai.x, 12, p));
+      if (!hasGroundBelow) {
+        let bestDx = 0;
+        let bestDist = Infinity;
+        for (const p of this.platforms) {
+          if (p.y < 700) continue;
+          const dLeft = wrapDeltaX(ai.x, p.x + 24);
+          const dRight = wrapDeltaX(ai.x, wrapX(p.x + p.w - 24));
+          if (Math.abs(dLeft) < bestDist) {
+            bestDist = Math.abs(dLeft);
+            bestDx = dLeft;
+          }
+          if (Math.abs(dRight) < bestDist) {
+            bestDist = Math.abs(dRight);
+            bestDx = dRight;
+          }
+        }
+        out.left = bestDx < 0;
+        out.right = bestDx >= 0;
+      }
+    }
+
+    // Jump when approaching a higher ledge, facing a solid wall, or about to walk off a bottom pit
     if (ai.onGround) {
+      const aheadX = wrapX(ai.x + ai.facing * 32);
       const solidAhead = this.platforms.some(
         (p) =>
           p.solid &&
@@ -1292,12 +1319,15 @@ export class GameEngine {
           ai.y - ai.h * 0.4 < p.y + p.h &&
           Math.abs(wrapDeltaX(wrapX(ai.x + ai.facing * 26), wrapX(p.x + p.w * 0.5))) < p.w * 0.5 + 16
       );
+      const pitAhead =
+        ai.y > 640 &&
+        !this.platforms.some((p) => p.y >= 700 && this.overlapsPlatformX(aheadX, 16, p));
       const wantsUp = dy < -32 && Math.abs(dx) < 150;
       const randomHop = this.aiDecisionTimer <= 0 && Math.random() < 0.16;
-      if (solidAhead || wantsUp || randomHop) {
+      if (solidAhead || pitAhead || wantsUp || randomHop) {
         out.jump = true;
         out.jumpPressed = true;
-        this.aiJumpHold = 0.3;
+        this.aiJumpHold = pitAhead ? 0.36 : 0.3;
         this.aiDecisionTimer = 0.45;
       }
     }
