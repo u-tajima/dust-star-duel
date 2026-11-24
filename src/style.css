@@ -636,85 +636,67 @@ body {
   margin-top: 4px;
 }
 
-/* Portrait graceful adaptation (keeps canvas clean on top, controls below) */
-@media (orientation: portrait) {
-  .stage-frame {
-    display: flex;
-    flex-direction: column;
-    background: var(--paper-deep);
-  }
+/* Landscape-Only Rotate Overlay */
+.rotate-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: radial-gradient(circle at center, #382819 0%, #1d140c 100%);
+  align-items: center;
+  justify-content: center;
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
 
-  #game-canvas {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 16 / 9;
-    margin-top: calc(48px + env(safe-area-inset-top));
-    border-top: 2px solid var(--ink);
-    border-bottom: 2px solid var(--ink);
-  }
+.rotate-card {
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  padding: 26px 28px;
+  box-shadow: 6px 6px 0 rgba(20, 12, 6, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--ink);
+}
 
-  .controller-deck {
-    position: relative;
-    flex: 1;
-    align-items: center;
-    padding-top: 12px;
-  }
+.rotate-icon {
+  width: 60px;
+  height: 60px;
+  animation: rotateHint 2.2s ease-in-out infinite;
+}
 
-  .pad-btn {
-    width: 72px;
-    height: 72px;
+@keyframes rotateHint {
+  0%,
+  20% {
+    transform: rotate(0deg);
   }
-
-  .pad-jump {
-    width: 78px;
-    height: 78px;
+  55%,
+  80% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
   }
 }
 
-/* Narrow viewports (e.g. 390px portrait): keep top HUD compact with zero clipping */
-@media (max-width: 480px) {
-  .hud-bar {
-    gap: 4px;
-    padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) 4px
-      max(6px, env(safe-area-inset-left));
-  }
+.rotate-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
 
-  .hud-side {
-    gap: 4px;
-    padding: 3px 6px;
-  }
+.rotate-sub {
+  font-size: 0.85rem;
+  opacity: 0.82;
+}
 
-  .hud-badge {
-    width: 10px;
-    height: 10px;
-  }
-
-  .star-slots {
-    gap: 1px;
-  }
-
-  .star-slot,
-  .star-slot svg {
-    width: 12px;
-    height: 12px;
-  }
-
-  .coin-meter {
-    display: none;
-  }
-
-  .hud-center {
-    gap: 4px;
-  }
-
-  .icon-btn {
-    width: 28px;
-    height: 28px;
-  }
-
-  .icon-svg {
-    width: 15px;
-    height: 15px;
+@media (orientation: portrait) {
+  .rotate-overlay {
+    display: flex;
   }
 }
 

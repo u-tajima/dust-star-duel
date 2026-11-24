@@ -292,12 +292,7 @@ export class SketchRenderer {
     jy: number
   ): void {
     const sy = p.y - game.camY;
-    const visualH =
-      p.style === 'mesa'
-        ? Math.max(p.h + 8, 36)
-        : p.style === 'bridge'
-          ? Math.max(p.h + 18, 34)
-          : Math.max(p.h + 14, 30);
+    const visualH = p.style === 'bridge' ? Math.max(p.h + 14, 30) : p.h;
 
     if (sy + visualH < -24 || sy > VIEW_H + 24) return;
 
@@ -306,6 +301,44 @@ export class SketchRenderer {
       if (sx + p.w < -24 || sx > VIEW_W + 24) continue;
       this.drawPlatformInstance(ctx, p, sx, sy, visualH, jx, jy);
     }
+  }
+
+  private drawTiledRect(
+    ctx: CanvasRenderingContext2D,
+    img: HTMLImageElement,
+    sx: number,
+    sy: number,
+    w: number,
+    h: number,
+    tileW: number,
+    tileH: number
+  ): void {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(sx, sy, w, h);
+    ctx.clip();
+
+    const cols = Math.ceil(w / tileW) + 1;
+    const rows = Math.ceil(h / tileH) + 1;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        ctx.drawImage(img, sx + c * tileW, sy + r * tileH, tileW + 0.5, tileH + 0.5);
+      }
+    }
+    ctx.restore();
+
+    // Crisp Gunman Clive 2D ink outline flush with exact collision bounds
+    ctx.save();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(sx, sy, w, h);
+    ctx.strokeStyle = 'rgba(255, 245, 224, 0.35)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(sx + 1, sy + 1.5);
+    ctx.lineTo(sx + w - 1, sy + 1.5);
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawPlatformInstance(
@@ -317,11 +350,11 @@ export class SketchRenderer {
     jx: number,
     jy: number
   ): void {
-    // 1. Crumbling Storefront Awning (TOWN)
+    // 1. Crumbling Storefront Awning (TOWN) — flat 2D seamless striped tile
     if (p.style === 'awning') {
       if (p.crumbleState === 'broken') {
         ctx.save();
-        ctx.strokeStyle = 'rgba(43, 32, 22, 0.22)';
+        ctx.strokeStyle = 'rgba(43, 32, 22, 0.25)';
         ctx.setLineDash([4, 4]);
         ctx.strokeRect(sx, sy, p.w, p.h);
         ctx.restore();
@@ -331,7 +364,7 @@ export class SketchRenderer {
       ctx.save();
       ctx.translate(shakeX, 0);
       if (this.tileAwningReady) {
-        ctx.drawImage(this.tileAwning, sx - 6, sy - 6, p.w + 12, p.h + 52);
+        this.drawTiledRect(ctx, this.tileAwning, sx, sy, p.w, p.h + 4, 48, p.h + 4);
       } else {
         ctx.fillStyle = '#b24532';
         ctx.fillRect(sx, sy, p.w, p.h + 4);
@@ -371,7 +404,7 @@ export class SketchRenderer {
       return;
     }
 
-    // 3. Solid cover pillars/walls (brick, wood, mesa cover blocks)
+    // 3. Solid cover pillars/walls — strictly flat 2D flush tiling (zero floating perspective!)
     if (p.solid) {
       const wallImg =
         p.style === 'brick'
@@ -387,7 +420,9 @@ export class SketchRenderer {
               : null;
 
       if (wallImg) {
-        ctx.drawImage(wallImg, sx - 3, sy - 3, p.w + 6, p.h + 6);
+        const tw = p.style === 'mesa' ? 56 : Math.max(32, p.w);
+        const th = p.style === 'mesa' ? 56 : 64;
+        this.drawTiledRect(ctx, wallImg, sx, sy, p.w, p.h, tw, th);
         return;
       }
 
@@ -401,42 +436,39 @@ export class SketchRenderer {
       return;
     }
 
-    // 4. Illustrated repeating tiles (mesa / wood / bridge / brick roof)
+    // 4. Railway X-truss bridge (transparent cutout beam)
+    if (p.style === 'bridge' && this.tileBridgeReady) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(sx, sy, p.w, visualH);
+      ctx.clip();
+      const segW = 96;
+      const count = Math.max(1, Math.ceil(p.w / segW));
+      for (let i = 0; i < count; i++) {
+        ctx.drawImage(this.tileBridge, sx + i * segW, sy, segW + 1, visualH);
+      }
+      ctx.restore();
+      return;
+    }
+
+    // 5. Flat 2D seamless horizontal tiles (mesa ground/ledges, wood decks, brick roofs)
     const img =
       p.style === 'mesa'
         ? this.tileMesaReady
           ? this.tileMesa
           : null
-        : p.style === 'wood' || p.style === 'brick'
-          ? this.tileWoodReady
-            ? this.tileWood
+        : p.style === 'brick'
+          ? this.tileBrickWallReady
+            ? this.tileBrickWall
             : null
-          : this.tileBridgeReady
-            ? this.tileBridge
+          : this.tileWoodReady
+            ? this.tileWood
             : null;
 
     if (img) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(sx - 2, sy - 8, p.w + 4, visualH + 14);
-      ctx.clip();
-
-      const segW = p.style === 'mesa' ? 148 : p.style === 'bridge' ? 124 : 128;
-      const count = Math.max(1, Math.round(p.w / segW));
-      const actualSegW = p.w / count;
-      const topOffset = p.style === 'mesa' ? -5 : p.style === 'wood' || p.style === 'brick' ? -6 : -3;
-
-      for (let i = 0; i < count; i++) {
-        const dx = sx + i * actualSegW;
-        ctx.drawImage(
-          img,
-          dx - (i > 0 ? 2 : 0),
-          sy + topOffset,
-          actualSegW + (i > 0 ? 2 : 0) + (i < count - 1 ? 2 : 0),
-          visualH
-        );
-      }
-      ctx.restore();
+      const tileW = p.style === 'mesa' ? 96 : p.style === 'brick' ? 64 : 96;
+      const tileH = p.style === 'mesa' ? Math.max(60, p.h) : Math.max(24, p.h);
+      this.drawTiledRect(ctx, img, sx, sy, p.w, p.h, tileW, tileH);
       return;
     }
 

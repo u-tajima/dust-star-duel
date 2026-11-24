@@ -250,26 +250,26 @@ export const STAGES: StageDef[] = [
       // Dusty Main Street railway roadbed
       { x: 0, y: 720, w: 1680, h: 60, style: 'mesa' },
 
-      // --- Building 1: SHERIFF'S OFFICE (West) ---
-      { x: 90, y: 520, w: 28, h: 130, solid: true, style: 'brick' },
-      { x: 350, y: 520, w: 28, h: 130, solid: true, style: 'brick' },
+      // --- Building 1: SHERIFF'S OFFICE (West, walls grounded flush to y=720!) ---
+      { x: 90, y: 522, w: 32, h: 198, solid: true, style: 'brick' },
+      { x: 348, y: 522, w: 32, h: 198, solid: true, style: 'brick' },
       { x: 75, y: 502, w: 320, h: 20, oneWay: true, style: 'wood' },
       // Crumbling wooden awning extending over street!
       { x: 395, y: 545, w: 120, h: 16, oneWay: true, style: 'awning', crumble: true },
 
-      // --- Building 2: FRONTIER BANK (Center) ---
-      { x: 640, y: 480, w: 32, h: 170, solid: true, style: 'brick' },
-      { x: 960, y: 480, w: 32, h: 170, solid: true, style: 'brick' },
+      // --- Building 2: FRONTIER BANK (Center, walls grounded flush to y=720!) ---
+      { x: 640, y: 482, w: 34, h: 238, solid: true, style: 'brick' },
+      { x: 958, y: 482, w: 34, h: 238, solid: true, style: 'brick' },
       { x: 625, y: 462, w: 385, h: 20, oneWay: true, style: 'brick' },
       // Bank interior mezzanine
-      { x: 680, y: 585, w: 270, h: 16, oneWay: true, style: 'wood' },
+      { x: 674, y: 585, w: 284, h: 16, oneWay: true, style: 'wood' },
       // Crumbling bank awnings on both flanks
       { x: 515, y: 495, w: 110, h: 16, oneWay: true, style: 'awning', crumble: true },
       { x: 1010, y: 495, w: 110, h: 16, oneWay: true, style: 'awning', crumble: true },
 
-      // --- Building 3: CLOCKTOWER & GENERAL STORE (East) ---
-      { x: 1220, y: 520, w: 28, h: 130, solid: true, style: 'brick' },
-      { x: 1500, y: 520, w: 28, h: 130, solid: true, style: 'brick' },
+      // --- Building 3: CLOCKTOWER & GENERAL STORE (East, walls grounded flush to y=720!) ---
+      { x: 1220, y: 522, w: 32, h: 198, solid: true, style: 'brick' },
+      { x: 1498, y: 522, w: 32, h: 198, solid: true, style: 'brick' },
       { x: 1205, y: 502, w: 340, h: 20, oneWay: true, style: 'wood' },
       // Crumbling awning on far East
       { x: 1545, y: 545, w: 115, h: 16, oneWay: true, style: 'awning', crumble: true },
