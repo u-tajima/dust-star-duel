@@ -9,333 +9,323 @@ export const VIEW_H = 315;
 export const COINS_FOR_GEAR = 6;
 export const MAX_HP = 3;
 
+// Jump physics guarantee: JUMP_VEL=605, GRAVITY=1480 => max jump height ~123px.
+// Every climbable tier step below is strictly 90-95px so players can climb freely
+// from multiple spots on every floor; springs & warp doors act as exciting speed shortcuts!
+
 export const STAGES: StageDef[] = [
   // =========================================================================
-  // 1. WASTELAND (荒野) — All classic frontier gimmicks unified!
-  //    Chasm sky-drops, moving minecart, vertical lift, cover mesas, springs
+  // 1. WASTELAND (荒野) — Multi-route frontier canyon
+  //    Tiers: 720 -> 628 -> 536 -> 442 -> 348 (every step 92-94px!)
   // =========================================================================
   {
     id: 'wasteland',
     name: 'WASTELAND',
     bgSrc: './assets/western-bg.jpg',
     platforms: [
-      // Split canyon ground with 2 sky-drop chasms (Mario vs Luigi style!)
+      // Ground with 2 jumpable 96px chasms (falling = KO, easy to leap over)
       { x: 0, y: 720, w: 540, h: 60, style: 'mesa' },
-      { x: 660, y: 720, w: 460, h: 60, style: 'mesa' },
-      { x: 1240, y: 720, w: 440, h: 60, style: 'mesa' },
+      { x: 636, y: 720, w: 484, h: 60, style: 'mesa' },
+      { x: 1216, y: 720, w: 464, h: 60, style: 'mesa' },
 
-      // Solid sandstone cover boulders on the ground (blocks bullets & movement)
-      { x: 250, y: 664, w: 56, h: 56, solid: true, style: 'mesa' },
-      { x: 860, y: 664, w: 64, h: 56, solid: true, style: 'mesa' },
-      { x: 1410, y: 664, w: 56, h: 56, solid: true, style: 'mesa' },
+      // Jumpable waist-high sandstone cover boulders (h=54px: blocks bullets, easy to hop over!)
+      { x: 250, y: 666, w: 54, h: 54, solid: true, style: 'mesa' },
+      { x: 860, y: 666, w: 54, h: 54, solid: true, style: 'mesa' },
+      { x: 1410, y: 666, w: 54, h: 54, solid: true, style: 'mesa' },
 
-      // Horizontal moving minecart over West chasm
+      // Tier 1 (y=628, 92px above ground — 4 wide entry points + moving minecart)
+      { x: 50, y: 628, w: 220, h: 18, oneWay: true, style: 'wood' },
       {
-        x: 520,
-        y: 615,
-        w: 130,
+        x: 530,
+        y: 628,
+        w: 120,
         h: 18,
         oneWay: true,
         style: 'bridge',
         moveAxis: 'x',
-        moveRange: 130,
-        moveSpeed: 1.25,
+        moveRange: 100,
+        moveSpeed: 1.2,
       },
-      // Vertical mine elevator over East chasm
+      { x: 750, y: 628, w: 240, h: 18, oneWay: true, style: 'wood' },
+      { x: 1320, y: 628, w: 240, h: 18, oneWay: true, style: 'wood' },
+
+      // Tier 2 (y=536, 92px above Tier 1 + vertical mine elevator)
+      { x: 220, y: 536, w: 250, h: 20, oneWay: true, style: 'mesa' },
+      { x: 600, y: 536, w: 240, h: 20, oneWay: true, style: 'mesa' },
       {
-        x: 1130,
-        y: 540,
-        w: 100,
+        x: 1120,
+        y: 520,
+        w: 110,
         h: 18,
         oneWay: true,
         style: 'bridge',
         moveAxis: 'y',
-        moveRange: 140,
-        moveSpeed: 1.35,
+        moveRange: 95,
+        moveSpeed: 1.3,
       },
+      { x: 1270, y: 536, w: 240, h: 20, oneWay: true, style: 'mesa' },
 
-      // Mid-tier wooden decks & canyon ledges
-      { x: 60, y: 580, w: 230, h: 18, oneWay: true, style: 'wood' },
-      { x: 750, y: 565, w: 260, h: 18, oneWay: true, style: 'wood' },
-      { x: 1340, y: 580, w: 240, h: 18, oneWay: true, style: 'wood' },
+      // Tier 3 (y=442, 94px above Tier 2 — railway X-truss bridges)
+      { x: 30, y: 442, w: 240, h: 16, oneWay: true, style: 'bridge' },
+      { x: 420, y: 442, w: 250, h: 16, oneWay: true, style: 'bridge' },
+      { x: 820, y: 442, w: 250, h: 16, oneWay: true, style: 'bridge' },
+      { x: 1240, y: 442, w: 250, h: 16, oneWay: true, style: 'bridge' },
 
-      // Canyon cliff mesas + upper cover rock
-      { x: 220, y: 455, w: 230, h: 20, oneWay: true, style: 'mesa' },
-      { x: 620, y: 440, w: 240, h: 20, oneWay: true, style: 'mesa' },
-      { x: 970, y: 440, w: 140, h: 20, oneWay: true, style: 'mesa' },
-      { x: 1290, y: 455, w: 230, h: 20, oneWay: true, style: 'mesa' },
-
-      // High railway X-truss trestle bridges
-      { x: 20, y: 325, w: 240, h: 16, oneWay: true, style: 'bridge' },
-      { x: 430, y: 315, w: 240, h: 16, oneWay: true, style: 'bridge' },
-      { x: 860, y: 315, w: 250, h: 16, oneWay: true, style: 'bridge' },
-      { x: 1290, y: 325, w: 240, h: 16, oneWay: true, style: 'bridge' },
-
-      // Summit lookout rocks
-      { x: 260, y: 205, w: 190, h: 18, oneWay: true, style: 'mesa' },
-      { x: 740, y: 195, w: 200, h: 18, oneWay: true, style: 'mesa' },
-      { x: 1200, y: 205, w: 190, h: 18, oneWay: true, style: 'mesa' },
+      // Tier 4 (y=348, 94px above Tier 3 — canyon summits)
+      { x: 240, y: 348, w: 210, h: 18, oneWay: true, style: 'mesa' },
+      { x: 720, y: 348, w: 230, h: 18, oneWay: true, style: 'mesa' },
+      { x: 1180, y: 348, w: 210, h: 18, oneWay: true, style: 'mesa' },
     ],
     springs: [
-      { x: 34, y: 694, w: 32, h: 26, power: 770 },
-      { x: 460, y: 694, w: 32, h: 26, power: 770 },
-      { x: 700, y: 694, w: 32, h: 26, power: 770 },
-      { x: 1290, y: 694, w: 32, h: 26, power: 770 },
-      { x: 730, y: 414, w: 32, h: 26, power: 690 },
+      { x: 355, y: 694, w: 32, h: 26, power: 780 },
+      { x: 1030, y: 694, w: 32, h: 26, power: 780 },
+      { x: 1585, y: 694, w: 32, h: 26, power: 780 },
+      { x: 705, y: 510, w: 32, h: 26, power: 700 },
     ],
     doors: [],
     tnts: [
-      { x: 390, y: 720 },
-      { x: 960, y: 565 },
-      { x: 840, y: 195 },
+      { x: 420, y: 720 },
+      { x: 940, y: 628 },
+      { x: 835, y: 348 },
     ],
     crates: [
-      { x: 335, y: 455 },
-      { x: 1405, y: 455 },
+      { x: 345, y: 536 },
+      { x: 1390, y: 536 },
     ],
     goldSpawns: [
-      { x: 355, y: 165 },
-      { x: 840, y: 155 },
-      { x: 1295, y: 165 },
-      { x: 140, y: 285 },
-      { x: 550, y: 275 },
-      { x: 985, y: 275 },
-      { x: 1410, y: 285 },
-      { x: 335, y: 415 },
-      { x: 1180, y: 440 },
-      { x: 880, y: 525 },
+      { x: 345, y: 308 },
+      { x: 835, y: 308 },
+      { x: 1285, y: 308 },
+      { x: 150, y: 402 },
+      { x: 545, y: 402 },
+      { x: 945, y: 402 },
+      { x: 1365, y: 402 },
+      { x: 345, y: 496 },
+      { x: 720, y: 496 },
+      { x: 1390, y: 496 },
     ],
     coinSpawns: [
-      { x: 175, y: 550 },
-      { x: 585, y: 575 },
-      { x: 880, y: 535 },
-      { x: 1460, y: 550 },
-      { x: 335, y: 425 },
-      { x: 740, y: 410 },
-      { x: 1405, y: 425 },
-      { x: 550, y: 285 },
-      { x: 985, y: 285 },
-      { x: 840, y: 165 },
+      { x: 160, y: 598 },
+      { x: 870, y: 598 },
+      { x: 1440, y: 598 },
+      { x: 345, y: 506 },
+      { x: 720, y: 506 },
+      { x: 1390, y: 506 },
+      { x: 545, y: 412 },
+      { x: 945, y: 412 },
+      { x: 345, y: 318 },
+      { x: 835, y: 318 },
     ],
     p1Spawn: { x: 140, y: 660 },
-    p2Spawn: { x: 1020, y: 660 },
+    p2Spawn: { x: 980, y: 660 },
   },
 
   // =========================================================================
-  // 2. SALOON (酒場) — Multi-room interior ambush!
-  //    Solid room walls/bar counters, 2 pairs of Swinging Warp Doors,
-  //    Swaying Chandeliers, tight multi-floor verticality
+  // 2. SALOON (酒場) — Open 4-story saloon with Flanking Warp Doors & Chandeliers
+  //    Tiers: 720 -> 628 -> 536 -> 442 -> 348 (every step 92-94px!)
   // =========================================================================
   {
     id: 'saloon',
     name: 'SALOON',
     bgSrc: './assets/saloon-bg.jpg',
     platforms: [
-      // Continuous polished saloon floorboards
+      // Continuous polished 1F floorboards (zero pits)
       { x: 0, y: 720, w: 1680, h: 60, style: 'wood' },
 
-      // Solid bar counters & interior pillar dividers (real bullet cover!)
-      { x: 360, y: 664, w: 48, h: 56, solid: true, style: 'wood' },
-      { x: 820, y: 610, w: 40, h: 110, solid: true, style: 'wood' },
-      { x: 1260, y: 664, w: 48, h: 56, solid: true, style: 'wood' },
+      // Jumpable bar counters & oak cover blocks (h=54px: bullet cover, zero trapping!)
+      { x: 380, y: 666, w: 48, h: 54, solid: true, style: 'wood' },
+      { x: 816, y: 666, w: 48, h: 54, solid: true, style: 'wood' },
+      { x: 1250, y: 666, w: 48, h: 54, solid: true, style: 'wood' },
 
-      // Mezzanine / 2nd-floor saloon galleries (leaving grand central atrium open)
-      { x: 40, y: 575, w: 320, h: 18, oneWay: true, style: 'wood' },
-      { x: 440, y: 555, w: 280, h: 18, oneWay: true, style: 'wood' },
-      { x: 960, y: 555, w: 280, h: 18, oneWay: true, style: 'wood' },
-      { x: 1320, y: 575, w: 320, h: 18, oneWay: true, style: 'wood' },
+      // Tier 1 (y=628, 92px up — 4 broad climbable saloon mezzanines)
+      { x: 40, y: 628, w: 280, h: 18, oneWay: true, style: 'wood' },
+      { x: 460, y: 628, w: 260, h: 18, oneWay: true, style: 'wood' },
+      { x: 960, y: 628, w: 260, h: 18, oneWay: true, style: 'wood' },
+      { x: 1360, y: 628, w: 280, h: 18, oneWay: true, style: 'wood' },
 
-      // Solid 2nd-floor saloon room partitions (create CQC rooms & peek corners)
-      { x: 180, y: 465, w: 34, h: 110, solid: true, style: 'wood' },
-      { x: 1460, y: 465, w: 34, h: 110, solid: true, style: 'wood' },
+      // Tier 2 (y=536, 92px up — 3F galleries + tactical chest-high cover blocks)
+      { x: 180, y: 536, w: 270, h: 18, oneWay: true, style: 'wood' },
+      { x: 640, y: 536, w: 400, h: 18, oneWay: true, style: 'wood' },
+      { x: 1230, y: 536, w: 270, h: 18, oneWay: true, style: 'wood' },
+      { x: 822, y: 484, w: 36, h: 52, solid: true, style: 'wood' },
 
-      // 3rd-floor VIP balconies
-      { x: 0, y: 430, w: 350, h: 18, oneWay: true, style: 'wood' },
-      { x: 480, y: 410, w: 210, h: 18, oneWay: true, style: 'wood' },
-      { x: 990, y: 410, w: 210, h: 18, oneWay: true, style: 'wood' },
-      { x: 1330, y: 430, w: 350, h: 18, oneWay: true, style: 'wood' },
-
-      // Swaying Chandeliers suspended over the open halls!
+      // Tier 3 (y=442, 94px up — 4F rafters + lower swaying chandelier)
+      { x: 20, y: 442, w: 300, h: 16, oneWay: true, style: 'bridge' },
+      { x: 420, y: 442, w: 220, h: 16, oneWay: true, style: 'wood' },
       {
-        x: 750,
-        y: 355,
-        w: 160,
+        x: 755,
+        y: 442,
+        w: 170,
         h: 16,
         oneWay: true,
         style: 'chandelier',
         moveAxis: 'x',
-        moveRange: 85,
-        moveSpeed: 1.55,
+        moveRange: 70,
+        moveSpeed: 1.45,
       },
+      { x: 1040, y: 442, w: 220, h: 16, oneWay: true, style: 'wood' },
+      { x: 1360, y: 442, w: 300, h: 16, oneWay: true, style: 'bridge' },
+
+      // Tier 4 (y=348, 94px up — top swaying chandelier & flanking VIP lofts)
+      { x: 240, y: 348, w: 240, h: 16, oneWay: true, style: 'bridge' },
       {
-        x: 760,
-        y: 210,
+        x: 765,
+        y: 348,
         w: 150,
         h: 16,
         oneWay: true,
         style: 'chandelier',
         moveAxis: 'x',
-        moveRange: 105,
-        moveSpeed: -1.35,
+        moveRange: 90,
+        moveSpeed: -1.3,
       },
-
-      // High rafters & backstage catwalks
-      { x: 140, y: 270, w: 250, h: 16, oneWay: true, style: 'bridge' },
-      { x: 450, y: 245, w: 180, h: 16, oneWay: true, style: 'bridge' },
-      { x: 1050, y: 245, w: 180, h: 16, oneWay: true, style: 'bridge' },
-      { x: 1290, y: 270, w: 250, h: 16, oneWay: true, style: 'bridge' },
+      { x: 1200, y: 348, w: 240, h: 16, oneWay: true, style: 'bridge' },
     ],
     springs: [
-      { x: 740, y: 694, w: 32, h: 26, power: 760 },
-      { x: 910, y: 694, w: 32, h: 26, power: 760 },
-      { x: 455, y: 529, w: 32, h: 26, power: 680 },
-      { x: 1195, y: 529, w: 32, h: 26, power: 680 },
+      { x: 735, y: 694, w: 32, h: 26, power: 770 },
+      { x: 915, y: 694, w: 32, h: 26, power: 770 },
+      { x: 475, y: 602, w: 32, h: 26, power: 690 },
+      { x: 1175, y: 602, w: 32, h: 26, power: 690 },
     ],
-    // 2 pairs of Swinging Saloon Warp Doors!
+    // 2 pairs of open-exit Swinging Saloon Warp Doors (zero dead ends!)
     doors: [
-      // Pair A (Crimson): Ground West Bar <-> Upper East VIP Rafters
-      { id: 'sa1', pairId: 'sa2', x: 70, y: 662, w: 36, h: 58, color: '#b23b2a' },
-      { id: 'sa2', pairId: 'sa1', x: 1400, y: 212, w: 36, h: 58, color: '#b23b2a' },
-      // Pair B (Indigo): Ground East Bar <-> Upper West VIP Rafters
-      { id: 'sb1', pairId: 'sb2', x: 1560, y: 662, w: 36, h: 58, color: '#354f70' },
-      { id: 'sb2', pairId: 'sb1', x: 240, y: 212, w: 36, h: 58, color: '#354f70' },
+      { id: 'sa1', pairId: 'sa2', x: 72, y: 662, w: 36, h: 58, color: '#b23b2a' },
+      { id: 'sa2', pairId: 'sa1', x: 1480, y: 384, w: 36, h: 58, color: '#b23b2a' },
+      { id: 'sb1', pairId: 'sb2', x: 1570, y: 662, w: 36, h: 58, color: '#354f70' },
+      { id: 'sb2', pairId: 'sb1', x: 155, y: 384, w: 36, h: 58, color: '#354f70' },
     ],
     tnts: [
-      { x: 580, y: 555 },
-      { x: 1100, y: 555 },
-      { x: 840, y: 720 },
+      { x: 590, y: 628 },
+      { x: 1090, y: 628 },
+      { x: 740, y: 536 },
     ],
     crates: [
-      { x: 585, y: 410 },
-      { x: 1095, y: 410 },
+      { x: 315, y: 536 },
+      { x: 1365, y: 536 },
     ],
     goldSpawns: [
-      { x: 835, y: 165 },
-      { x: 830, y: 310 },
-      { x: 265, y: 230 },
-      { x: 1415, y: 230 },
-      { x: 540, y: 205 },
-      { x: 1140, y: 205 },
-      { x: 110, y: 390 },
-      { x: 1560, y: 390 },
-      { x: 580, y: 515 },
-      { x: 1100, y: 515 },
+      { x: 840, y: 308 },
+      { x: 360, y: 308 },
+      { x: 1320, y: 308 },
+      { x: 530, y: 402 },
+      { x: 1150, y: 402 },
+      { x: 840, y: 402 },
+      { x: 315, y: 496 },
+      { x: 1365, y: 496 },
+      { x: 590, y: 588 },
+      { x: 1090, y: 588 },
     ],
     coinSpawns: [
-      { x: 260, y: 690 },
-      { x: 1420, y: 690 },
-      { x: 580, y: 525 },
-      { x: 1100, y: 525 },
-      { x: 585, y: 380 },
-      { x: 1095, y: 380 },
-      { x: 265, y: 240 },
-      { x: 1415, y: 240 },
-      { x: 830, y: 325 },
-      { x: 835, y: 180 },
+      { x: 220, y: 690 },
+      { x: 1460, y: 690 },
+      { x: 590, y: 598 },
+      { x: 1090, y: 598 },
+      { x: 315, y: 506 },
+      { x: 1365, y: 506 },
+      { x: 530, y: 412 },
+      { x: 1150, y: 412 },
+      { x: 360, y: 318 },
+      { x: 1320, y: 318 },
     ],
     p1Spawn: { x: 200, y: 660 },
     p2Spawn: { x: 1440, y: 660 },
   },
 
   // =========================================================================
-  // 3. TOWN (市街) — Gunman Clive Frontier Main Street!
-  //    Multi-building rooftops & alleys, Rolling Steam Train across Main St,
-  //    Crumbling Storefront Awnings, Alleyway Warp Doors
+  // 3. TOWN (市街) — Open Frontier Main Street, Rooftop Parkour & Steam Train
+  //    Tiers: 720 -> 628 -> 536 -> 442 -> 348 (climbable EVERYWHERE, ZERO dead ends!)
   // =========================================================================
   {
     id: 'town',
     name: 'TOWN',
     bgSrc: './assets/town-bg.jpg',
     platforms: [
-      // Dusty Main Street railway roadbed
+      // Open continuous Main Street roadbed (zero trapping holes; train runs freely!)
       { x: 0, y: 720, w: 1680, h: 60, style: 'mesa' },
 
-      // --- Building 1: SHERIFF'S OFFICE (West, walls grounded flush to y=720!) ---
-      { x: 90, y: 522, w: 32, h: 198, solid: true, style: 'brick' },
-      { x: 348, y: 522, w: 32, h: 198, solid: true, style: 'brick' },
-      { x: 75, y: 502, w: 320, h: 20, oneWay: true, style: 'wood' },
-      // Crumbling wooden awning extending over street!
-      { x: 395, y: 545, w: 120, h: 16, oneWay: true, style: 'awning', crumble: true },
+      // Tier 1 (y=628, 92px up — 6 easy storefront porches & crumbling awnings across town!)
+      { x: 40, y: 628, w: 220, h: 18, oneWay: true, style: 'wood' },
+      { x: 320, y: 628, w: 130, h: 16, oneWay: true, style: 'awning', crumble: true },
+      { x: 520, y: 628, w: 230, h: 18, oneWay: true, style: 'wood' },
+      { x: 830, y: 628, w: 130, h: 16, oneWay: true, style: 'awning', crumble: true },
+      { x: 1040, y: 628, w: 230, h: 18, oneWay: true, style: 'wood' },
+      { x: 1350, y: 628, w: 130, h: 16, oneWay: true, style: 'awning', crumble: true },
 
-      // --- Building 2: FRONTIER BANK (Center, walls grounded flush to y=720!) ---
-      { x: 640, y: 482, w: 34, h: 238, solid: true, style: 'brick' },
-      { x: 958, y: 482, w: 34, h: 238, solid: true, style: 'brick' },
-      { x: 625, y: 462, w: 385, h: 20, oneWay: true, style: 'brick' },
-      // Bank interior mezzanine
-      { x: 674, y: 585, w: 284, h: 16, oneWay: true, style: 'wood' },
-      // Crumbling bank awnings on both flanks
-      { x: 515, y: 495, w: 110, h: 16, oneWay: true, style: 'awning', crumble: true },
-      { x: 1010, y: 495, w: 110, h: 16, oneWay: true, style: 'awning', crumble: true },
+      // Tier 2 (y=536, 92px up — 3 Iconic Rooftops: Sheriff's Office, Bank, Clocktower!)
+      { x: 110, y: 536, w: 300, h: 20, oneWay: true, style: 'brick' },
+      { x: 640, y: 536, w: 340, h: 20, oneWay: true, style: 'brick' },
+      { x: 1180, y: 536, w: 320, h: 20, oneWay: true, style: 'brick' },
 
-      // --- Building 3: CLOCKTOWER & GENERAL STORE (East, walls grounded flush to y=720!) ---
-      { x: 1220, y: 522, w: 32, h: 198, solid: true, style: 'brick' },
-      { x: 1498, y: 522, w: 32, h: 198, solid: true, style: 'brick' },
-      { x: 1205, y: 502, w: 340, h: 20, oneWay: true, style: 'wood' },
-      // Crumbling awning on far East
-      { x: 1545, y: 545, w: 115, h: 16, oneWay: true, style: 'awning', crumble: true },
+      // Jumpable rooftop brick parapet cover blocks (h=52px: bullet cover, never traps!)
+      { x: 240, y: 484, w: 40, h: 52, solid: true, style: 'brick' },
+      { x: 790, y: 484, w: 44, h: 52, solid: true, style: 'brick' },
+      { x: 1320, y: 484, w: 40, h: 52, solid: true, style: 'brick' },
 
-      // Upper rooftop parapet & telegraph wire walkways
-      { x: 150, y: 360, w: 220, h: 16, oneWay: true, style: 'bridge' },
-      { x: 690, y: 330, w: 260, h: 18, oneWay: true, style: 'brick' },
-      { x: 1260, y: 360, w: 230, h: 16, oneWay: true, style: 'bridge' },
+      // Tier 3 (y=442, 94px up — Upper awnings & telegraph wire bridges linking roofs!)
+      { x: 0, y: 442, w: 180, h: 16, oneWay: true, style: 'bridge' },
+      { x: 360, y: 442, w: 240, h: 16, oneWay: true, style: 'bridge' },
+      { x: 700, y: 442, w: 220, h: 18, oneWay: true, style: 'brick' },
+      { x: 1000, y: 442, w: 140, h: 16, oneWay: true, style: 'awning', crumble: true },
+      { x: 1240, y: 442, w: 260, h: 16, oneWay: true, style: 'bridge' },
 
-      // High Clocktower belfry & telegraph spans
-      { x: 420, y: 245, w: 180, h: 16, oneWay: true, style: 'bridge' },
-      { x: 1040, y: 245, w: 180, h: 16, oneWay: true, style: 'bridge' },
-      { x: 1310, y: 215, w: 150, h: 18, oneWay: true, style: 'wood' },
+      // Tier 4 (y=348, 94px up — Clocktower Belfry & Bank Spire)
+      { x: 200, y: 348, w: 210, h: 16, oneWay: true, style: 'wood' },
+      { x: 710, y: 348, w: 220, h: 18, oneWay: true, style: 'wood' },
+      { x: 1260, y: 348, w: 220, h: 18, oneWay: true, style: 'wood' },
     ],
-    // Roaring Steam Train rolling along Main Street (ride roof or dodge cowcatcher!)
+    // Roaring Steam Train rolling along Main Street (ride roof at y=656 or dodge cowcatcher!)
     train: {
-      x: 120,
+      x: 160,
       y: 656,
       w: 220,
       h: 64,
-      speed: 145,
+      speed: 140,
     },
     springs: [
-      { x: 455, y: 694, w: 32, h: 26, power: 760 },
-      { x: 1110, y: 694, w: 32, h: 26, power: 760 },
-      { x: 230, y: 476, w: 32, h: 26, power: 660 },
+      { x: 465, y: 694, w: 32, h: 26, power: 770 },
+      { x: 985, y: 694, w: 32, h: 26, power: 770 },
+      { x: 1545, y: 694, w: 32, h: 26, power: 770 },
+      { x: 655, y: 510, w: 32, h: 26, power: 690 },
     ],
-    // Alleyway & Bank-to-Clocktower Warp Doors
+    // Open-exit Alleyway <-> Clocktower Belfry Warp Doors (clear exits left, right, & down!)
     doors: [
-      { id: 'ta1', pairId: 'ta2', x: 795, y: 527, w: 36, h: 58, color: '#c48a28' },
-      { id: 'ta2', pairId: 'ta1', x: 1365, y: 157, w: 36, h: 58, color: '#c48a28' },
+      { id: 'ta1', pairId: 'ta2', x: 130, y: 570, w: 36, h: 58, color: '#c48a28' },
+      { id: 'ta2', pairId: 'ta1', x: 1350, y: 290, w: 36, h: 58, color: '#c48a28' },
     ],
     tnts: [
-      { x: 235, y: 502 },
-      { x: 820, y: 462 },
-      { x: 1375, y: 502 },
+      { x: 350, y: 536 },
+      { x: 920, y: 536 },
+      { x: 1430, y: 536 },
     ],
     crates: [
-      { x: 820, y: 330 },
-      { x: 1375, y: 360 },
+      { x: 810, y: 442 },
+      { x: 1370, y: 442 },
     ],
     goldSpawns: [
-      { x: 1385, y: 175 },
-      { x: 510, y: 205 },
-      { x: 1130, y: 205 },
-      { x: 820, y: 290 },
-      { x: 260, y: 320 },
-      { x: 1375, y: 320 },
-      { x: 815, y: 545 },
-      { x: 455, y: 505 },
-      { x: 1065, y: 455 },
-      { x: 560, y: 660 },
+      { x: 305, y: 308 },
+      { x: 820, y: 308 },
+      { x: 1370, y: 308 },
+      { x: 480, y: 402 },
+      { x: 810, y: 402 },
+      { x: 1370, y: 402 },
+      { x: 190, y: 496 },
+      { x: 730, y: 496 },
+      { x: 1260, y: 496 },
+      { x: 635, y: 588 },
     ],
     coinSpawns: [
-      { x: 235, y: 470 },
-      { x: 455, y: 515 },
-      { x: 820, y: 430 },
-      { x: 1065, y: 465 },
-      { x: 1375, y: 470 },
-      { x: 260, y: 330 },
-      { x: 820, y: 300 },
-      { x: 510, y: 215 },
-      { x: 1130, y: 215 },
-      { x: 1385, y: 185 },
+      { x: 150, y: 598 },
+      { x: 635, y: 598 },
+      { x: 1155, y: 598 },
+      { x: 190, y: 506 },
+      { x: 910, y: 506 },
+      { x: 1260, y: 506 },
+      { x: 480, y: 412 },
+      { x: 1070, y: 412 },
+      { x: 820, y: 318 },
+      { x: 1370, y: 318 },
     ],
-    p1Spawn: { x: 230, y: 450 },
-    p2Spawn: { x: 1375, y: 450 },
+    p1Spawn: { x: 180, y: 480 },
+    p2Spawn: { x: 1320, y: 480 },
   },
 ];

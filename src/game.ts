@@ -24,7 +24,7 @@ const MOVE_SPEED = 275;
 const GROUND_ACCEL = 2500;
 const AIR_ACCEL = 1850;
 const FRICTION = 2200;
-const JUMP_VEL = 575;
+const JUMP_VEL = 605;
 const BULLET_SPEED = 560;
 const SNIPER_SPEED = 900;
 
