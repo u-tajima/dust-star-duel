@@ -112,6 +112,7 @@ export interface Fighter {
   stunTimer: number;
   respawnTimer: number;
   warpCooldown: number;
+  doorReady: boolean;
   hp: number;
   maxHp: number;
   lives: number; // -1 when infinite

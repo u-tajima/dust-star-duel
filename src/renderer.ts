@@ -488,12 +488,31 @@ export class SketchRenderer {
     if (sy + d.h < -24 || sy > VIEW_H + 24) return;
     const swing = d.swingTimer > 0 ? Math.sin((d.swingTimer / 0.45) * Math.PI) * 0.14 : 0;
 
+    // Highlight door softly when local player is inside its generous release-to-warp zone
+    const me = game.localPlayer === 'p1' ? game.fighters[0] : game.fighters[1];
+    const inZone =
+      me.respawnTimer <= 0 &&
+      me.doorReady &&
+      me.warpCooldown <= 0 &&
+      Math.abs(wrapDeltaX(me.x, d.x + d.w * 0.5)) < 34 &&
+      Math.abs(me.y - (d.y + d.h * 0.5)) < 40;
+
     for (let shift = -WORLD_W; shift <= WORLD_W; shift += WORLD_W) {
       const sx = d.x + shift - game.camX;
       if (sx + d.w < -24 || sx > VIEW_W + 24) continue;
 
       ctx.save();
       ctx.translate(sx + d.w * 0.5, sy + d.h);
+      if (inZone) {
+        ctx.save();
+        ctx.strokeStyle = '#ffe285';
+        ctx.lineWidth = 2.6;
+        ctx.globalAlpha = 0.75 + Math.sin(game.time * 12) * 0.25;
+        ctx.beginPath();
+        ctx.roundRect(-d.w * 0.72, -d.h - 7, d.w * 1.44, d.h + 10, [14, 14, 2, 2]);
+        ctx.stroke();
+        ctx.restore();
+      }
       ctx.scale(1 - swing, 1 + swing * 0.4);
       if (this.propDoorReady) {
         ctx.drawImage(this.propDoor, -d.w * 0.68, -d.h - 4, d.w * 1.36, d.h + 6);

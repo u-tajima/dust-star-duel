@@ -104,6 +104,7 @@ export class GameEngine {
       stunTimer: 0,
       respawnTimer: 0,
       warpCooldown: 0,
+      doorReady: true,
       hp: MAX_HP,
       maxHp: MAX_HP,
       lives: this.rules.maxLives === 0 ? -1 : this.rules.maxLives,
@@ -608,25 +609,36 @@ export class GameEngine {
       }
     }
 
-    // Swinging Warp Doors (Mario vs Luigi pipe-style quick flank!)
-    if (f.warpCooldown <= 0 && this.doors.length > 0) {
+    // Swinging Warp Doors: generous hitbox (±34px x ±40px), triggers ONLY when movement finger is released!
+    if (this.doors.length > 0) {
+      const movingInput = input.left || input.right;
+      let nearAnyDoor = false;
       for (const d of this.doors) {
         const dcx = d.x + d.w * 0.5;
         const dcy = d.y + d.h * 0.5;
-        if (Math.abs(wrapDeltaX(f.x, dcx)) < 16 && Math.abs(f.y - dcy) < 26) {
-          const dest = this.doors.find((o) => o.id === d.pairId);
-          if (dest) {
-            d.swingTimer = 0.45;
-            dest.swingTimer = 0.45;
-            this.burstParticles(f.x, f.y, 8, 'dust', '#d8c094');
-            f.x = wrapX(dest.x + dest.w * 0.5);
-            f.y = dest.y + dest.h - f.h * 0.5 - 2;
-            f.warpCooldown = 1.45;
-            sound.playWarp();
-            this.burstParticles(f.x, f.y, 10, 'gold', d.color);
-            break;
+        if (Math.abs(wrapDeltaX(f.x, dcx)) < 34 && Math.abs(f.y - dcy) < 40) {
+          nearAnyDoor = true;
+          if (f.warpCooldown <= 0 && f.doorReady && !movingInput && f.stunTimer <= 0) {
+            const dest = this.doors.find((o) => o.id === d.pairId);
+            if (dest) {
+              d.swingTimer = 0.45;
+              dest.swingTimer = 0.45;
+              this.burstParticles(f.x, f.y, 8, 'dust', '#d8c094');
+              f.x = wrapX(dest.x + dest.w * 0.5);
+              f.y = dest.y + dest.h - f.h * 0.5 - 2;
+              f.vx = 0;
+              f.warpCooldown = 0.65;
+              f.doorReady = false;
+              sound.playWarp();
+              this.burstParticles(f.x, f.y, 10, 'gold', d.color);
+              break;
+            }
           }
         }
+      }
+      // Re-arm door warp once fighter moves away or starts pressing a direction after cooldown
+      if (!nearAnyDoor || (movingInput && f.warpCooldown <= 0)) {
+        f.doorReady = true;
       }
     }
 
@@ -1239,12 +1251,16 @@ export class GameEngine {
       }
 
       // Option B: Warp doors whose paired exit is significantly closer to goalY
-      if (ai.warpCooldown <= 0) {
+      if (ai.warpCooldown <= 0 && ai.doorReady) {
         for (const d of this.doors) {
           if (Math.abs(d.y + d.h - (ai.y + ai.h * 0.5)) < 70) {
             const dest = this.doors.find((o) => o.id === d.pairId);
             if (dest && Math.abs(dest.y - goalY) < Math.abs(ai.y - goalY) - 100) {
               const dist = Math.abs(wrapDeltaX(ai.x, d.x + d.w * 0.5));
+              if (dist < 26) {
+                // Release movement right in front of door to enter it!
+                return out;
+              }
               const score = dist * 0.75;
               if (score < bestScore) {
                 bestScore = score;
