@@ -21,6 +21,7 @@ export const STAGES: StageDef[] = [
   {
     id: 'wasteland',
     name: 'WASTELAND',
+    category: 'normal',
     bgSrc: './assets/western-bg.jpg',
     platforms: [
       // Ground with 2 jumpable 96px chasms (falling = KO, easy to leap over)
@@ -127,6 +128,7 @@ export const STAGES: StageDef[] = [
   {
     id: 'saloon',
     name: 'SALOON',
+    category: 'normal',
     bgSrc: './assets/saloon-bg.jpg',
     platforms: [
       // Continuous polished 1F floorboards (zero pits)
@@ -238,6 +240,7 @@ export const STAGES: StageDef[] = [
   {
     id: 'town',
     name: 'TOWN',
+    category: 'normal',
     bgSrc: './assets/town-bg.jpg',
     platforms: [
       // Open continuous Main Street roadbed (zero trapping holes; train runs freely!)
@@ -327,5 +330,277 @@ export const STAGES: StageDef[] = [
     ],
     p1Spawn: { x: 180, y: 480 },
     p2Spawn: { x: 1320, y: 480 },
+  },
+
+  // =========================================================================
+  // 4. SPECIAL: TRAIN (暴走列車) — 5-Car Runaway Steam Express + Fierce Gale!
+  //    Constant desert headwind (-68 px/s), train-car gaps (falling = KO),
+  //    crumbling car hatches, upper baggage racks & coal tender cover
+  // =========================================================================
+  {
+    id: 'train',
+    name: 'TRAIN',
+    category: 'special',
+    bgSrc: './assets/train-bg.jpg',
+    windBase: -68,
+    platforms: [
+      // 5 speeding train car roofs (76px coupler gaps — lethal if you miss!)
+      { x: 0, y: 720, w: 260, h: 60, style: 'brick' },
+      { x: 336, y: 720, w: 260, h: 60, style: 'wood' },
+      { x: 672, y: 720, w: 268, h: 60, style: 'brick' },
+      { x: 1016, y: 720, w: 260, h: 60, style: 'wood' },
+      { x: 1352, y: 720, w: 256, h: 60, style: 'brick' },
+
+      // Jumpable coal bunkers & iron luggage trunks on car roofs (h=52px)
+      { x: 110, y: 668, w: 46, h: 52, solid: true, style: 'wood' },
+      { x: 780, y: 668, w: 50, h: 52, solid: true, style: 'brick' },
+      { x: 1460, y: 668, w: 46, h: 52, solid: true, style: 'wood' },
+
+      // Tier 1 (y=628, 92px up — upper train cupolas & crumbling hatch planks)
+      { x: 60, y: 628, w: 180, h: 18, oneWay: true, style: 'wood' },
+      { x: 265, y: 628, w: 110, h: 16, oneWay: true, style: 'awning', crumble: true },
+      { x: 430, y: 628, w: 200, h: 18, oneWay: true, style: 'wood' },
+      { x: 720, y: 628, w: 200, h: 18, oneWay: true, style: 'bridge' },
+      { x: 960, y: 628, w: 110, h: 16, oneWay: true, style: 'awning', crumble: true },
+      { x: 1110, y: 628, w: 200, h: 18, oneWay: true, style: 'wood' },
+      { x: 1400, y: 628, w: 180, h: 18, oneWay: true, style: 'bridge' },
+
+      // Tier 2 (y=536, 92px up — swaying overhead signal gantries & catwalks)
+      { x: 170, y: 536, w: 230, h: 16, oneWay: true, style: 'bridge' },
+      { x: 540, y: 536, w: 240, h: 16, oneWay: true, style: 'bridge' },
+      { x: 910, y: 536, w: 230, h: 16, oneWay: true, style: 'bridge' },
+      { x: 1260, y: 536, w: 240, h: 16, oneWay: true, style: 'bridge' },
+
+      // Tier 3 (y=442, 94px up — high iron signal bridges)
+      { x: 350, y: 442, w: 220, h: 16, oneWay: true, style: 'bridge' },
+      { x: 740, y: 442, w: 210, h: 16, oneWay: true, style: 'bridge' },
+      { x: 1130, y: 442, w: 220, h: 16, oneWay: true, style: 'bridge' },
+    ],
+    springs: [
+      { x: 18, y: 694, w: 32, h: 26, power: 760 },
+      { x: 688, y: 694, w: 32, h: 26, power: 760 },
+      { x: 1368, y: 694, w: 32, h: 26, power: 760 },
+    ],
+    doors: [],
+    tnts: [
+      { x: 465, y: 720 },
+      { x: 1145, y: 720 },
+      { x: 845, y: 442 },
+    ],
+    crates: [
+      { x: 285, y: 536 },
+      { x: 1025, y: 536 },
+    ],
+    goldSpawns: [
+      { x: 460, y: 402 },
+      { x: 845, y: 402 },
+      { x: 1240, y: 402 },
+      { x: 285, y: 496 },
+      { x: 660, y: 496 },
+      { x: 1025, y: 496 },
+      { x: 1380, y: 496 },
+      { x: 150, y: 588 },
+      { x: 820, y: 588 },
+      { x: 1490, y: 588 },
+    ],
+    coinSpawns: [
+      { x: 150, y: 598 },
+      { x: 530, y: 598 },
+      { x: 820, y: 598 },
+      { x: 1210, y: 598 },
+      { x: 1490, y: 598 },
+      { x: 285, y: 506 },
+      { x: 660, y: 506 },
+      { x: 1025, y: 506 },
+      { x: 460, y: 412 },
+      { x: 1240, y: 412 },
+    ],
+    p1Spawn: { x: 180, y: 660 },
+    p2Spawn: { x: 1140, y: 660 },
+  },
+
+  // =========================================================================
+  // 5. SPECIAL: MINE (暗闇の廃坑) — Cavern Lantern Spotlight + Ore Conveyors!
+  //    Darkness veil lit around player, gold, blasts & flashes; conveyor belts
+  //    push fighters & gold; paired mine-shaft warp doors
+  // =========================================================================
+  {
+    id: 'mine',
+    name: 'MINE',
+    category: 'special',
+    bgSrc: './assets/mine-bg.jpg',
+    darkness: true,
+    platforms: [
+      // Continuous bedrock floor
+      { x: 0, y: 720, w: 1680, h: 60, style: 'mesa' },
+
+      // Jumpable ore-cart rock cover pillars (h=54px)
+      { x: 420, y: 666, w: 50, h: 54, solid: true, style: 'mesa' },
+      { x: 1200, y: 666, w: 50, h: 54, solid: true, style: 'mesa' },
+
+      // Tier 1 (y=628, 92px up — fast ore conveyor belts pushing opposite ways!)
+      { x: 60, y: 628, w: 300, h: 18, oneWay: true, style: 'bridge', conveyorSpeed: 105 },
+      { x: 520, y: 628, w: 320, h: 18, oneWay: true, style: 'bridge', conveyorSpeed: -105 },
+      { x: 980, y: 628, w: 300, h: 18, oneWay: true, style: 'bridge', conveyorSpeed: 105 },
+      { x: 1360, y: 628, w: 260, h: 18, oneWay: true, style: 'bridge', conveyorSpeed: -105 },
+
+      // Tier 2 (y=536, 92px up — timber mine galleries)
+      { x: 200, y: 536, w: 280, h: 18, oneWay: true, style: 'wood' },
+      { x: 680, y: 536, w: 320, h: 18, oneWay: true, style: 'wood' },
+      { x: 1180, y: 536, w: 280, h: 18, oneWay: true, style: 'wood' },
+
+      // Tier 3 (y=442, 94px up — upper ore conveyor runs!)
+      { x: 40, y: 442, w: 280, h: 16, oneWay: true, style: 'bridge', conveyorSpeed: -115 },
+      { x: 460, y: 442, w: 280, h: 16, oneWay: true, style: 'bridge', conveyorSpeed: 115 },
+      { x: 920, y: 442, w: 280, h: 16, oneWay: true, style: 'bridge', conveyorSpeed: -115 },
+      { x: 1340, y: 442, w: 280, h: 16, oneWay: true, style: 'bridge', conveyorSpeed: 115 },
+
+      // Tier 4 (y=348, 94px up — deep gold vein chambers)
+      { x: 260, y: 348, w: 240, h: 18, oneWay: true, style: 'mesa' },
+      { x: 720, y: 348, w: 240, h: 18, oneWay: true, style: 'mesa' },
+      { x: 1180, y: 348, w: 240, h: 18, oneWay: true, style: 'mesa' },
+    ],
+    springs: [
+      { x: 20, y: 694, w: 32, h: 26, power: 770 },
+      { x: 840, y: 694, w: 32, h: 26, power: 770 },
+      { x: 1620, y: 694, w: 32, h: 26, power: 770 },
+    ],
+    doors: [
+      { id: 'ma1', pairId: 'ma2', x: 160, y: 662, w: 36, h: 58, color: '#e8aa2a' },
+      { id: 'ma2', pairId: 'ma1', x: 1280, y: 290, w: 36, h: 58, color: '#e8aa2a' },
+      { id: 'mb1', pairId: 'mb2', x: 1480, y: 662, w: 36, h: 58, color: '#4c88b5' },
+      { id: 'mb2', pairId: 'mb1', x: 360, y: 290, w: 36, h: 58, color: '#4c88b5' },
+    ],
+    tnts: [
+      { x: 680, y: 628 },
+      { x: 840, y: 536 },
+      { x: 1120, y: 628 },
+    ],
+    crates: [
+      { x: 340, y: 536 },
+      { x: 1320, y: 536 },
+    ],
+    goldSpawns: [
+      { x: 380, y: 308 },
+      { x: 840, y: 308 },
+      { x: 1300, y: 308 },
+      { x: 180, y: 402 },
+      { x: 600, y: 402 },
+      { x: 1060, y: 402 },
+      { x: 1480, y: 402 },
+      { x: 340, y: 496 },
+      { x: 840, y: 496 },
+      { x: 1320, y: 496 },
+    ],
+    coinSpawns: [
+      { x: 210, y: 598 },
+      { x: 680, y: 598 },
+      { x: 1130, y: 598 },
+      { x: 1490, y: 598 },
+      { x: 340, y: 506 },
+      { x: 840, y: 506 },
+      { x: 1320, y: 506 },
+      { x: 600, y: 412 },
+      { x: 1060, y: 412 },
+      { x: 840, y: 318 },
+    ],
+    p1Spawn: { x: 260, y: 660 },
+    p2Spawn: { x: 1380, y: 660 },
+  },
+
+  // =========================================================================
+  // 6. SPECIAL: STORM (低重力・砂嵐メサ) — Low Gravity (0.62x) + Shifting Gusts!
+  //    Soaring aerial gunfights, shifting wind every ~6s, crumbling sky bridges
+  // =========================================================================
+  {
+    id: 'storm',
+    name: 'STORM',
+    category: 'special',
+    bgSrc: './assets/storm-bg.jpg',
+    gravityScale: 0.62,
+    gustWind: true,
+    platforms: [
+      // Island canyon bases with wide aerial chasms (easy to cross in Low-G!)
+      { x: 0, y: 720, w: 360, h: 60, style: 'mesa' },
+      { x: 460, y: 720, w: 340, h: 60, style: 'mesa' },
+      { x: 900, y: 720, w: 340, h: 60, style: 'mesa' },
+      { x: 1340, y: 720, w: 340, h: 60, style: 'mesa' },
+
+      // Tier 1 (y=628, 92px up — floating sandstone mesas & crumbling bridges)
+      { x: 140, y: 628, w: 210, h: 18, oneWay: true, style: 'mesa' },
+      { x: 380, y: 628, w: 120, h: 16, oneWay: true, style: 'awning', crumble: true },
+      { x: 620, y: 628, w: 220, h: 18, oneWay: true, style: 'mesa' },
+      { x: 1060, y: 628, w: 220, h: 18, oneWay: true, style: 'mesa' },
+      { x: 1300, y: 628, w: 120, h: 16, oneWay: true, style: 'awning', crumble: true },
+
+      // Tier 2 (y=536, 92px up — floating rock islands + moving wind-raft)
+      { x: 40, y: 536, w: 200, h: 18, oneWay: true, style: 'mesa' },
+      { x: 420, y: 536, w: 220, h: 18, oneWay: true, style: 'bridge' },
+      {
+        x: 810,
+        y: 536,
+        w: 160,
+        h: 18,
+        oneWay: true,
+        style: 'wood',
+        moveAxis: 'x',
+        moveRange: 110,
+        moveSpeed: 1.15,
+      },
+      { x: 1220, y: 536, w: 220, h: 18, oneWay: true, style: 'bridge' },
+
+      // Tier 3 (y=442, 94px up — high storm spires)
+      { x: 220, y: 442, w: 210, h: 18, oneWay: true, style: 'mesa' },
+      { x: 640, y: 442, w: 210, h: 18, oneWay: true, style: 'mesa' },
+      { x: 1060, y: 442, w: 210, h: 18, oneWay: true, style: 'mesa' },
+      { x: 1440, y: 442, w: 200, h: 18, oneWay: true, style: 'mesa' },
+
+      // Tier 4 (y=348, 94px up — sky-high mesas & crumbling center span)
+      { x: 380, y: 348, w: 200, h: 16, oneWay: true, style: 'bridge' },
+      { x: 780, y: 348, w: 130, h: 16, oneWay: true, style: 'awning', crumble: true },
+      { x: 1100, y: 348, w: 200, h: 16, oneWay: true, style: 'bridge' },
+    ],
+    springs: [
+      { x: 60, y: 694, w: 32, h: 26, power: 680 },
+      { x: 610, y: 694, w: 32, h: 26, power: 680 },
+      { x: 1050, y: 694, w: 32, h: 26, power: 680 },
+      { x: 1490, y: 694, w: 32, h: 26, power: 680 },
+    ],
+    doors: [],
+    tnts: [
+      { x: 240, y: 628 },
+      { x: 730, y: 628 },
+      { x: 1170, y: 628 },
+    ],
+    crates: [
+      { x: 325, y: 442 },
+      { x: 1165, y: 442 },
+    ],
+    goldSpawns: [
+      { x: 480, y: 308 },
+      { x: 845, y: 308 },
+      { x: 1200, y: 308 },
+      { x: 325, y: 402 },
+      { x: 745, y: 402 },
+      { x: 1165, y: 402 },
+      { x: 1540, y: 402 },
+      { x: 530, y: 496 },
+      { x: 1330, y: 496 },
+      { x: 730, y: 588 },
+    ],
+    coinSpawns: [
+      { x: 240, y: 598 },
+      { x: 730, y: 598 },
+      { x: 1170, y: 598 },
+      { x: 140, y: 506 },
+      { x: 530, y: 506 },
+      { x: 1330, y: 506 },
+      { x: 325, y: 412 },
+      { x: 745, y: 412 },
+      { x: 480, y: 318 },
+      { x: 1200, y: 318 },
+    ],
+    p1Spawn: { x: 160, y: 660 },
+    p2Spawn: { x: 1060, y: 660 },
   },
 ];

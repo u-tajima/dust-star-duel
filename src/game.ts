@@ -129,6 +129,19 @@ export class GameEngine {
     return null;
   }
 
+  public getActiveWind(): number {
+    const def = STAGES[this.stageIndex];
+    if (def.gustWind) {
+      return Math.sin(this.time * 0.55) * 105;
+    }
+    return def.windBase ?? 0;
+  }
+
+  public getGravity(): number {
+    const def = STAGES[this.stageIndex];
+    return GRAVITY * (def.gravityScale ?? 1);
+  }
+
   public loadStage(index: number): void {
     this.stageIndex = index % STAGES.length;
     const def = STAGES[this.stageIndex];
@@ -520,12 +533,14 @@ export class GameEngine {
       f.vx *= Math.pow(0.25, dt);
     }
 
-    f.vy = Math.min(MAX_FALL, f.vy + GRAVITY * dt);
+    const effGrav = this.getGravity();
+    const wind = this.getActiveWind();
+    f.vy = Math.min(MAX_FALL, f.vy + effGrav * dt);
     const prevBottom = f.y + f.h * 0.5;
     const prevTop = f.y - f.h * 0.5;
 
-    // Horizontal integrate + solid wall blocking
-    f.x = wrapX(f.x + f.vx * dt);
+    // Horizontal integrate (including special-stage wind drift) + solid wall blocking
+    f.x = wrapX(f.x + (f.vx + wind * (f.onGround ? 0.55 : 0.95)) * dt);
     for (const p of this.platforms) {
       if (!p.solid) continue;
       if (f.y + f.h * 0.45 > p.y && f.y - f.h * 0.45 < p.y + p.h) {
@@ -572,6 +587,9 @@ export class GameEngine {
             f.y = p.y - f.h * 0.5;
             f.vy = 0;
             f.onGround = true;
+            if (p.conveyorSpeed) {
+              f.x = wrapX(f.x + p.conveyorSpeed * dt);
+            }
             if (p.crumble && p.crumbleState === 'intact') {
               p.crumbleState = 'shaking';
               p.crumbleTimer = 0.62;
@@ -918,7 +936,7 @@ export class GameEngine {
       const b = this.projectiles[i];
       b.life -= dt;
       if (b.kind === 'dynamite') {
-        b.vy = Math.min(MAX_FALL * 0.85, b.vy + GRAVITY * 0.85 * dt);
+        b.vy = Math.min(MAX_FALL * 0.85, b.vy + this.getGravity() * 0.85 * dt);
         b.spin += dt * 11 * Math.sign(b.vx || 1);
       }
 

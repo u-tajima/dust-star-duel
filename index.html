@@ -120,10 +120,19 @@
 
             <div class="title-controls">
               <div class="rule-rows">
-                <div class="stage-picker" id="stage-picker" role="radiogroup" aria-label="Stage">
-                  <button class="stage-chip active" data-stage="0">WASTELAND</button>
-                  <button class="stage-chip" data-stage="1">SALOON</button>
-                  <button class="stage-chip" data-stage="2">TOWN</button>
+                <div class="stage-row">
+                  <div class="cat-picker" id="cat-picker" role="radiogroup" aria-label="Stage Category">
+                    <button class="mini-chip active" data-cat="normal">NORMAL</button>
+                    <button class="mini-chip" data-cat="special">SPECIAL</button>
+                  </div>
+                  <div class="stage-picker" id="stage-picker" role="radiogroup" aria-label="Stage">
+                    <button class="stage-chip active" data-stage="0" data-cat="normal">WASTELAND</button>
+                    <button class="stage-chip" data-stage="1" data-cat="normal">SALOON</button>
+                    <button class="stage-chip" data-stage="2" data-cat="normal">TOWN</button>
+                    <button class="stage-chip hidden" data-stage="3" data-cat="special">TRAIN</button>
+                    <button class="stage-chip hidden" data-stage="4" data-cat="special">MINE</button>
+                    <button class="stage-chip hidden" data-stage="5" data-cat="special">STORM</button>
+                  </div>
                 </div>
 
                 <div class="rule-subrow">

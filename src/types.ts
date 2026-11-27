@@ -21,6 +21,8 @@ export interface Platform {
   crumble?: boolean;
   crumbleState?: 'intact' | 'shaking' | 'broken';
   crumbleTimer?: number;
+  /** Conveyor belt horizontal push speed (px/s) */
+  conveyorSpeed?: number;
 }
 
 export interface SpringBarrel {
@@ -73,9 +75,15 @@ export interface WeaponCrate {
 }
 
 export interface StageDef {
-  id: 'wasteland' | 'saloon' | 'town';
+  id: 'wasteland' | 'saloon' | 'town' | 'train' | 'mine' | 'storm';
   name: string;
+  category: 'normal' | 'special';
   bgSrc: string;
+  /** Special stage modifiers */
+  gravityScale?: number;
+  windBase?: number;
+  gustWind?: boolean;
+  darkness?: boolean;
   platforms: Omit<Platform, 'baseX' | 'baseY' | 'crumbleState' | 'crumbleTimer'>[];
   springs: Omit<SpringBarrel, 'bounceTimer'>[];
   doors: Omit<WarpDoor, 'swingTimer'>[];

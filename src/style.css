@@ -322,6 +322,25 @@ body {
   gap: 6px;
 }
 
+.stage-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.cat-picker {
+  display: inline-flex;
+  gap: 3px;
+  padding-right: 6px;
+  border-right: 1.5px solid rgba(43, 32, 22, 0.32);
+}
+
+.cat-picker .mini-chip[data-cat='special'].active {
+  background: var(--p1);
+  color: #fdf2dc;
+}
+
 .title-cta {
   display: flex;
   align-items: center;

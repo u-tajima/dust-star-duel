@@ -51,8 +51,14 @@ export class SketchRenderer {
   private propDoorReady = false;
   private propTrain: HTMLImageElement;
   private propTrainReady = false;
+  private darkCanvas: HTMLCanvasElement;
+  private darkCtx: CanvasRenderingContext2D;
 
   constructor() {
+    this.darkCanvas = document.createElement('canvas');
+    this.darkCanvas.width = VIEW_W;
+    this.darkCanvas.height = VIEW_H;
+    this.darkCtx = this.darkCanvas.getContext('2d')!;
     for (const st of STAGES) {
       const entry = { img: new Image(), ready: false };
       entry.img.onload = () => {
@@ -235,10 +241,20 @@ export class SketchRenderer {
       ctx.restore();
     }
 
-    // 10. Paper vignette
+    // 10. Special stage environmental VFX (wind streaks & cavern lantern darkness)
+    const stageDef = STAGES[game.stageIndex];
+    const wind = game.getActiveWind();
+    if (Math.abs(wind) > 10) {
+      this.drawWindStreaks(ctx, game, wind);
+    }
+    if (stageDef.darkness && game.mode === 'playing') {
+      this.drawCavernDarkness(ctx, game);
+    }
+
+    // 11. Paper vignette
     this.drawVignette(ctx);
 
-    // 11. DS off-screen indicators & mini-radar
+    // 12. DS off-screen indicators & mini-radar
     if (game.mode === 'playing') {
       this.drawOffscreenIndicators(ctx, game);
       this.drawMiniRadar(ctx, game);
@@ -446,6 +462,20 @@ export class SketchRenderer {
       const count = Math.max(1, Math.ceil(p.w / segW));
       for (let i = 0; i < count; i++) {
         ctx.drawImage(this.tileBridge, sx + i * segW, sy, segW + 1, visualH);
+      }
+      // Animated conveyor chevrons when platform is an ore conveyor belt (MINE)
+      if (p.conveyorSpeed) {
+        const dir = Math.sign(p.conveyorSpeed);
+        const shift = ((Date.now() * 0.06 * dir) % 24 + 24) % 24;
+        ctx.strokeStyle = '#ffdf7e';
+        ctx.lineWidth = 2;
+        for (let x = sx + shift - 24; x < sx + p.w + 12; x += 24) {
+          ctx.beginPath();
+          ctx.moveTo(x - dir * 4, sy + 4);
+          ctx.lineTo(x + dir * 3, sy + 8);
+          ctx.lineTo(x - dir * 4, sy + 12);
+          ctx.stroke();
+        }
       }
       ctx.restore();
       return;
@@ -1025,6 +1055,64 @@ export class SketchRenderer {
     }
 
     ctx.restore();
+  }
+
+  private drawWindStreaks(ctx: CanvasRenderingContext2D, game: GameEngine, wind: number): void {
+    const dir = Math.sign(wind);
+    const speed = Math.abs(wind) * 3.2;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(248, 232, 198, 0.42)';
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 16; i++) {
+      const y = ((i * 53 + 17) % (VIEW_H - 24)) + 12;
+      const len = 34 + (i % 4) * 18;
+      const rawX = (i * 97 + game.time * speed * dir) % (VIEW_W + len * 2);
+      const x = ((rawX + VIEW_W + len * 2) % (VIEW_W + len * 2)) - len;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + len * dir, y + (i % 2 === 0 ? 1.5 : -1.5));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private drawCavernDarkness(ctx: CanvasRenderingContext2D, game: GameEngine): void {
+    const dctx = this.darkCtx;
+    dctx.globalCompositeOperation = 'source-over';
+    dctx.fillStyle = 'rgba(18, 12, 7, 0.86)';
+    dctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+    // Punch warm lantern light holes using destination-out
+    dctx.globalCompositeOperation = 'destination-out';
+    const punch = (wx: number, wy: number, r: number) => {
+      const sx = this.worldToScreenX(game, wx);
+      const sy = wy - game.camY;
+      if (sx < -r || sx > VIEW_W + r || sy < -r || sy > VIEW_H + r) return;
+      const grad = dctx.createRadialGradient(sx, sy, r * 0.2, sx, sy, r);
+      grad.addColorStop(0, 'rgba(0,0,0,1)');
+      grad.addColorStop(0.65, 'rgba(0,0,0,0.75)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      dctx.fillStyle = grad;
+      dctx.beginPath();
+      dctx.arc(sx, sy, r, 0, Math.PI * 2);
+      dctx.fill();
+    };
+
+    const me = game.localPlayer === 'p1' ? game.fighters[0] : game.fighters[1];
+    if (me.respawnTimer <= 0) punch(me.x, me.y - 6, 138);
+
+    // Muzzle flashes & WANTED rival reveal light in the dark!
+    const wantedId = game.getWantedId();
+    for (const f of game.fighters) {
+      if (f.respawnTimer > 0) continue;
+      if (f.muzzleTimer > 0) punch(f.x + f.facing * 22, f.y - 4, 100);
+      if (f.id === wantedId && f.id !== game.localPlayer) punch(f.x, f.y, 72);
+    }
+
+    for (const g of game.golds) punch(g.x, g.y, 76);
+    for (const ex of game.explosions) punch(ex.x, ex.y, ex.radius * 1.9);
+
+    ctx.drawImage(this.darkCanvas, 0, 0);
   }
 
   private drawVignette(ctx: CanvasRenderingContext2D): void {

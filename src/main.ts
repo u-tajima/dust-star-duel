@@ -22,6 +22,7 @@ const p1LivesEl = document.getElementById('p1-lives')!;
 const p2LivesEl = document.getElementById('p2-lives')!;
 const p1GearEl = document.getElementById('p1-gear')!;
 const p2GearEl = document.getElementById('p2-gear')!;
+const catPicker = document.getElementById('cat-picker')!;
 const stagePicker = document.getElementById('stage-picker')!;
 const goldPicker = document.getElementById('gold-picker')!;
 const livesPicker = document.getElementById('lives-picker')!;
@@ -298,7 +299,32 @@ window.addEventListener('mouseup', () => {
   syncButtonVisuals();
 });
 
-// Stage / Gold / Lives pickers
+// Category (NORMAL / SPECIAL) & Stage / Gold / Lives pickers
+catPicker.addEventListener('click', (e) => {
+  const target = (e.target as HTMLElement).closest<HTMLButtonElement>('.mini-chip');
+  if (!target) return;
+  const cat = target.dataset.cat || 'normal';
+  catPicker.querySelectorAll('.mini-chip').forEach((chip) => {
+    chip.classList.toggle('active', chip === target);
+  });
+
+  let firstVisible: HTMLButtonElement | null = null;
+  stagePicker.querySelectorAll<HTMLButtonElement>('.stage-chip').forEach((chip) => {
+    const match = chip.dataset.cat === cat;
+    chip.classList.toggle('hidden', !match);
+    if (match && !firstVisible) firstVisible = chip;
+  });
+
+  if (firstVisible) {
+    const btn = firstVisible as HTMLButtonElement;
+    const idx = Number(btn.dataset.stage || '0');
+    game.loadStage(idx);
+    stagePicker.querySelectorAll('.stage-chip').forEach((chip) => {
+      chip.classList.toggle('active', chip === btn);
+    });
+  }
+});
+
 stagePicker.addEventListener('click', (e) => {
   const target = (e.target as HTMLElement).closest<HTMLButtonElement>('.stage-chip');
   if (!target) return;
