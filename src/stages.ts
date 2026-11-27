@@ -335,46 +335,41 @@ export const STAGES: StageDef[] = [
   },
 
   // =========================================================================
-  // 4. SPECIAL: TRAIN (暴走列車ジャンクション) — 3 Multi-Tier Steam Trains!
-  //    3 full steam trains roaring in opposite directions across 3 railway
-  //    trestle levels (1F right, 2F left, 3F right) + desert gale!
+  // 4. SPECIAL: TRAIN (暴走列車ジャンクション) — 4-Tier Crossing Express!
+  //    NO safe penthouse! All 4 tiers are live railway tracks with 4 steam
+  //    trains roaring in alternating directions (R / L / R / L)!
   // =========================================================================
   {
     id: 'train',
     name: 'TRAIN',
     category: 'special',
     bgSrc: './assets/train-bg.jpg',
-    windBase: -42,
+    windBase: -36,
     platforms: [
-      // Track 1 (1F Railway Bed, y=720) — continuous rail bed for Train #1
+      // Track 1 (1F Railway Bed, y=720) — Train #1 (RIGHT +170)
       { x: 0, y: 720, w: 1680, h: 60, style: 'mesa' },
 
-      // Track 2 (2F Trestle Railway, y=628, 92px up) — spans for Train #2 (going LEFT!)
+      // Track 2 (2F Trestle Railway, y=628, 92px up) — Train #2 (LEFT -165)
       { x: 0, y: 628, w: 460, h: 16, oneWay: true, style: 'bridge' },
       { x: 540, y: 628, w: 500, h: 16, oneWay: true, style: 'bridge' },
       { x: 1120, y: 628, w: 560, h: 16, oneWay: true, style: 'bridge' },
 
-      // Track 3 (3F High Iron Trestle, y=536, 92px up) — spans for Train #3 (going RIGHT!)
-      { x: 60, y: 536, w: 420, h: 16, oneWay: true, style: 'bridge' },
-      { x: 580, y: 536, w: 460, h: 16, oneWay: true, style: 'bridge' },
+      // Track 3 (3F High Iron Trestle, y=536, 92px up) — Train #3 (RIGHT +185)
+      { x: 60, y: 536, w: 440, h: 16, oneWay: true, style: 'bridge' },
+      { x: 580, y: 536, w: 480, h: 16, oneWay: true, style: 'bridge' },
       { x: 1140, y: 536, w: 480, h: 16, oneWay: true, style: 'bridge' },
 
-      // Tier 4 (y=442, 94px up — signal station catwalks & crumbling planks above tracks)
-      { x: 180, y: 442, w: 220, h: 18, oneWay: true, style: 'wood' },
-      { x: 520, y: 442, w: 130, h: 16, oneWay: true, style: 'awning', crumble: true },
-      { x: 740, y: 442, w: 240, h: 18, oneWay: true, style: 'wood' },
-      { x: 1090, y: 442, w: 130, h: 16, oneWay: true, style: 'awning', crumble: true },
-      { x: 1310, y: 442, w: 220, h: 18, oneWay: true, style: 'wood' },
-
-      // Tier 5 (y=348, 94px up — top water-tower & signal lookout decks)
-      { x: 350, y: 348, w: 210, h: 16, oneWay: true, style: 'wood' },
-      { x: 1120, y: 348, w: 210, h: 16, oneWay: true, style: 'wood' },
+      // Track 4 (4F Sky Express Trestle, y=442, 94px up) — Train #4 (LEFT -195)
+      { x: 140, y: 442, w: 360, h: 16, oneWay: true, style: 'bridge' },
+      { x: 620, y: 442, w: 400, h: 16, oneWay: true, style: 'bridge' },
+      { x: 1140, y: 442, w: 400, h: 16, oneWay: true, style: 'bridge' },
     ],
-    // 3 roaring Steam Trains on 3 stacked railway levels!
+    // 4 roaring Steam Trains across ALL 4 railway tiers!
     trains: [
-      { x: 100, y: 656, w: 220, h: 64, speed: 175 },
-      { x: 960, y: 564, w: 220, h: 64, speed: -160 },
+      { x: 120, y: 656, w: 220, h: 64, speed: 170 },
+      { x: 960, y: 564, w: 220, h: 64, speed: -165 },
       { x: 520, y: 472, w: 220, h: 64, speed: 185 },
+      { x: 1320, y: 378, w: 220, h: 64, speed: -195 },
     ],
     springs: [
       { x: 30, y: 694, w: 32, h: 26, power: 770 },
@@ -383,40 +378,40 @@ export const STAGES: StageDef[] = [
     ],
     doors: [],
     tnts: [
-      { x: 290, y: 442 },
-      { x: 860, y: 442 },
-      { x: 1420, y: 442 },
+      { x: 320, y: 628 },
+      { x: 840, y: 536 },
+      { x: 1340, y: 442 },
     ],
     crates: [
-      { x: 455, y: 348 },
-      { x: 1225, y: 348 },
+      { x: 280, y: 536 },
+      { x: 1260, y: 536 },
     ],
     goldSpawns: [
-      { x: 455, y: 308 },
-      { x: 1225, y: 308 },
-      { x: 290, y: 402 },
-      { x: 860, y: 402 },
-      { x: 1420, y: 402 },
-      { x: 270, y: 496 },
-      { x: 810, y: 496 },
+      { x: 320, y: 402 },
+      { x: 820, y: 402 },
+      { x: 1340, y: 402 },
+      { x: 280, y: 496 },
+      { x: 820, y: 496 },
       { x: 1380, y: 496 },
-      { x: 585, y: 588 },
-      { x: 1155, y: 588 },
+      { x: 230, y: 588 },
+      { x: 790, y: 588 },
+      { x: 1400, y: 588 },
+      { x: 520, y: 678 },
     ],
     coinSpawns: [
       { x: 230, y: 598 },
       { x: 790, y: 598 },
-      { x: 1350, y: 598 },
-      { x: 270, y: 506 },
-      { x: 810, y: 506 },
+      { x: 1400, y: 598 },
+      { x: 280, y: 506 },
+      { x: 820, y: 506 },
       { x: 1380, y: 506 },
-      { x: 585, y: 412 },
-      { x: 1155, y: 412 },
-      { x: 455, y: 318 },
-      { x: 1225, y: 318 },
+      { x: 320, y: 412 },
+      { x: 820, y: 412 },
+      { x: 1340, y: 412 },
+      { x: 1080, y: 688 },
     ],
-    p1Spawn: { x: 260, y: 390 },
-    p2Spawn: { x: 1400, y: 390 },
+    p1Spawn: { x: 220, y: 580 },
+    p2Spawn: { x: 1360, y: 580 },
   },
 
   // =========================================================================

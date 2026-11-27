@@ -54,6 +54,18 @@ export interface SteamTrain {
   wheelPhase: number;
 }
 
+export interface DebrisItem {
+  kind: 'tumbleweed' | 'plank' | 'sheet';
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  angle: number;
+  spin: number;
+  life: number;
+}
+
 export interface TntBarrel {
   x: number;
   y: number;

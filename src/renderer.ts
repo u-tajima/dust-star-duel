@@ -196,7 +196,70 @@ export class SketchRenderer {
       ctx.restore();
     }
 
-    // 8. Explosions
+    // 8. Explosions & Flying Storm Debris
+    for (const d of game.debris) {
+      const sx = this.worldToScreenX(game, d.x);
+      const sy = d.y - game.camY;
+      if (sx < -32 || sx > VIEW_W + 32 || sy < -32 || sy > VIEW_H + 32) continue;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(d.angle);
+      if (d.kind === 'tumbleweed') {
+        ctx.fillStyle = '#a87d44';
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(0, 0, d.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // Hand-drawn tangled twigs inside tumbleweed
+        ctx.strokeStyle = '#47311a';
+        ctx.lineWidth = 1.4;
+        for (let k = 0; k < 5; k++) {
+          const a = (k * Math.PI) / 2.5;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * -11, Math.sin(a) * -11);
+          ctx.quadraticCurveTo(Math.cos(a + 1.2) * 8, Math.sin(a + 1.2) * 8, Math.cos(a) * 11, Math.sin(a) * 11);
+          ctx.stroke();
+        }
+      } else if (d.kind === 'plank') {
+        ctx.fillStyle = '#9e6b3a';
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(-16, -4);
+        ctx.lineTo(14, -5);
+        ctx.lineTo(17, 1);
+        ctx.lineTo(13, 5);
+        ctx.lineTo(-15, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Nail dots
+        ctx.fillStyle = INK;
+        ctx.beginPath();
+        ctx.arc(-10, 0, 1.4, 0, Math.PI * 2);
+        ctx.arc(10, 0, 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Corrugated tin roof sheet
+        ctx.fillStyle = '#9da4a8';
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 1.8;
+        ctx.fillRect(-13, -9, 26, 18);
+        ctx.strokeRect(-13, -9, 26, 18);
+        ctx.strokeStyle = 'rgba(43, 32, 22, 0.45)';
+        ctx.lineWidth = 1.2;
+        for (let y = -5; y <= 5; y += 5) {
+          ctx.beginPath();
+          ctx.moveTo(-12, y);
+          ctx.lineTo(12, y);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
     for (const ex of game.explosions) {
       const sx = this.worldToScreenX(game, ex.x);
       const sy = ex.y - game.camY;

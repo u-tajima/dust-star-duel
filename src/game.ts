@@ -2,6 +2,7 @@ import { sound } from './audio';
 import { COINS_FOR_GEAR, MAX_HP, STAGES, VIEW_H, VIEW_W, WORLD_H, WORLD_W } from './stages';
 import type {
   CoinItem,
+  DebrisItem,
   Explosion,
   Fighter,
   GameMode,
@@ -61,6 +62,7 @@ export class GameEngine {
   public springs: SpringBarrel[] = [];
   public doors: WarpDoor[] = [];
   public trains: SteamTrain[] = [];
+  public debris: DebrisItem[] = [];
   public tnts: TntBarrel[] = [];
   public crates: WeaponCrate[] = [];
   public fighters: [Fighter, Fighter];
@@ -72,6 +74,7 @@ export class GameEngine {
 
   private goldRespawnTimer = 0;
   private coinRespawnTimer = 0;
+  private debrisSpawnTimer = 0;
   private lastGoldSpawnIdx = -1;
   private aiDecisionTimer = 0;
   private aiJumpHold = 0;
@@ -188,8 +191,10 @@ export class GameEngine {
 
     this.projectiles = [];
     this.explosions = [];
+    this.debris = [];
     this.golds = [];
     this.particles = [];
+    this.debrisSpawnTimer = 0.6;
     this.coins = def.coinSpawns.map((c, idx) => ({
       x: c.x,
       y: c.y,
@@ -239,6 +244,7 @@ export class GameEngine {
       platforms: this.platforms.map((p) => ({ x: p.x, y: p.y, crumbleState: p.crumbleState })),
       doors: this.doors.map((d) => ({ swingTimer: d.swingTimer })),
       trains: this.trains.map((t) => ({ x: t.x, wheelPhase: t.wheelPhase })),
+      debris: this.debris.map((d) => ({ ...d })),
     };
   }
 
@@ -287,6 +293,9 @@ export class GameEngine {
         this.trains[i].wheelPhase = t.wheelPhase;
       }
     });
+    if (snap.debris) {
+      this.debris = snap.debris as DebrisItem[];
+    }
 
     this.updateCamera(Math.min(dt, 0.04));
   }
@@ -428,9 +437,10 @@ export class GameEngine {
     // 4. Fighter vs Fighter stomp & bump
     this.resolveFighterDuel();
 
-    // 5. Update projectiles & explosions
+    // 5. Update projectiles, explosions & flying storm debris
     this.updateProjectiles(clampedDt);
     this.updateExplosions(clampedDt);
+    this.updateDebris(clampedDt);
 
     // 6. Update golds, crates, & coins
     this.updateGolds(clampedDt);
@@ -1032,6 +1042,95 @@ export class GameEngine {
       this.explosions[i].life -= dt;
       if (this.explosions[i].life <= 0) {
         this.explosions.splice(i, 1);
+      }
+    }
+  }
+
+  private updateDebris(dt: number): void {
+    const stageDef = STAGES[this.stageIndex];
+    if (!stageDef.gustWind) return;
+
+    const wind = this.getActiveWind();
+    const windDir = wind >= 0 ? 1 : -1;
+
+    // Spawn flying storm debris (tumbleweeds, splintered planks, tin roof sheets)
+    this.debrisSpawnTimer -= dt;
+    if (this.debrisSpawnTimer <= 0 && this.debris.length < 7) {
+      this.debrisSpawnTimer = 0.85 + Math.random() * 0.7;
+      const roll = Math.random();
+      const kind: DebrisItem['kind'] = roll < 0.45 ? 'tumbleweed' : roll < 0.75 ? 'plank' : 'sheet';
+      const spawnY = kind === 'tumbleweed' ? 320 + Math.random() * 340 : 280 + Math.random() * 390;
+      const spawnX = wrapX(this.camX + (windDir > 0 ? -40 : VIEW_W + 40) + (Math.random() - 0.5) * 420);
+      const baseSpeed = kind === 'tumbleweed' ? 195 : kind === 'plank' ? 275 : 310;
+      this.debris.push({
+        kind,
+        x: spawnX,
+        y: spawnY,
+        vx: windDir * (baseSpeed + Math.random() * 90),
+        vy: kind === 'tumbleweed' ? -40 : (Math.random() - 0.5) * 45,
+        radius: kind === 'tumbleweed' ? 15 : 13,
+        angle: Math.random() * Math.PI * 2,
+        spin: windDir * (5 + Math.random() * 6),
+        life: 6.5,
+      });
+    }
+
+    const effGrav = this.getGravity();
+    for (let i = this.debris.length - 1; i >= 0; i--) {
+      const d = this.debris[i];
+      d.life -= dt;
+      if (d.life <= 0 || d.y > WORLD_H + 50) {
+        this.debris.splice(i, 1);
+        continue;
+      }
+
+      // Wind gently steers debris in the shifting storm direction
+      d.vx += (wind * 2.2 - d.vx) * Math.min(1, dt * 0.7);
+      if (d.kind === 'tumbleweed') {
+        d.vy = Math.min(480, d.vy + effGrav * 0.7 * dt);
+      } else {
+        d.vy += Math.sin(this.time * 5 + i) * 35 * dt;
+      }
+
+      d.x = wrapX(d.x + d.vx * dt);
+      d.y += d.vy * dt;
+      d.angle += d.spin * dt;
+
+      // Tumbleweeds bounce energetically along platforms
+      if (d.kind === 'tumbleweed' && d.vy > 0) {
+        for (const p of this.platforms) {
+          if (p.solid || (p.crumble && p.crumbleState === 'broken')) continue;
+          if (this.overlapsPlatformX(d.x, d.radius * 1.4, p) && d.y + d.radius >= p.y && d.y + d.radius <= p.y + 20) {
+            d.y = p.y - d.radius;
+            d.vy = -(180 + Math.random() * 90);
+            break;
+          }
+        }
+      }
+
+      // Fighter collision!
+      for (const f of this.fighters) {
+        if (f.respawnTimer > 0 || f.invulnTimer > 0) continue;
+        const dx = Math.abs(wrapDeltaX(d.x, f.x));
+        const dy = Math.abs(d.y - f.y);
+        if (dx < f.w * 0.55 + d.radius && dy < f.h * 0.52 + d.radius) {
+          const hitDir = Math.sign(d.vx) || 1;
+          if (d.kind === 'tumbleweed') {
+            // Bouncy push without killing (disruptive & funny!)
+            f.vx = hitDir * 310;
+            f.vy = -210;
+            f.stunTimer = 0.2;
+            f.invulnTimer = 0.55;
+            sound.playSpring();
+            this.burstParticles(d.x, d.y, 8, 'dust', '#b38d58');
+          } else {
+            // Splintered plank or tin sheet deals 1 damage + heavy knockback!
+            this.damageFighter(f, 1, hitDir, 330);
+            this.burstParticles(d.x, d.y, 10, 'spark', '#5c4028');
+          }
+          this.debris.splice(i, 1);
+          break;
+        }
       }
     }
   }
