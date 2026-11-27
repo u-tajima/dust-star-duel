@@ -25,7 +25,7 @@ export interface NetSnapshot {
   springs: { bounceTimer: number }[];
   platforms: { x: number; y: number; crumbleState?: 'intact' | 'shaking' | 'broken' }[];
   doors: { swingTimer: number }[];
-  train: { x: number; wheelPhase: number } | null;
+  trains: { x: number; wheelPhase: number }[];
 }
 
 export type NetPacket =

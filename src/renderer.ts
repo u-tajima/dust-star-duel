@@ -113,9 +113,9 @@ export class SketchRenderer {
       this.drawPlatform(ctx, game, p, jx * 0.4, jy * 0.4);
     }
 
-    // 3. Stage props: warp doors, steam train, springs, TNT barrels, weapon crates
+    // 3. Stage props: warp doors, steam trains, springs, TNT barrels, weapon crates
     for (const d of game.doors) this.drawDoor(ctx, game, d);
-    if (game.train) this.drawTrain(ctx, game, game.train);
+    for (const tr of game.trains) this.drawTrain(ctx, game, tr);
     for (const s of game.springs) this.drawSpring(ctx, game, s);
     for (const t of game.tnts) {
       if (t.alive) this.drawTnt(ctx, game, t);
@@ -575,10 +575,10 @@ export class SketchRenderer {
 
       ctx.save();
       if (this.propTrainReady) {
-        // Flip horizontally so locomotive faces right (matching tr.speed > 0)
+        // Flip horizontally when speed >= 0 so locomotive faces its direction of travel!
         const bob = Math.sin(tr.wheelPhase * 2) * 1.2;
         ctx.translate(sx + tr.w * 0.5, sy + tr.h + bob);
-        ctx.scale(-1, 1);
+        ctx.scale(tr.speed >= 0 ? -1 : 1, 1);
         ctx.drawImage(this.propTrain, -tr.w * 0.56, -tr.h - 26, tr.w * 1.12, tr.h + 28);
       } else {
         ctx.fillStyle = '#3d3834';
@@ -1015,6 +1015,12 @@ export class SketchRenderer {
       const part1 = rx + rw - vx;
       ctx.strokeRect(vx, ry + 1, part1, rh - 2);
       ctx.strokeRect(rx, ry + 1, vw - part1, rh - 2);
+    }
+
+    // Moving steam trains on mini-radar
+    ctx.fillStyle = '#4a3425';
+    for (const tr of game.trains) {
+      ctx.fillRect(rx + tr.x * sx, ry + tr.y * sy, Math.max(6, tr.w * sx), Math.max(2.5, tr.h * sy));
     }
 
     // Gold Bars on radar

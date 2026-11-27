@@ -87,7 +87,7 @@ export interface StageDef {
   platforms: Omit<Platform, 'baseX' | 'baseY' | 'crumbleState' | 'crumbleTimer'>[];
   springs: Omit<SpringBarrel, 'bounceTimer'>[];
   doors: Omit<WarpDoor, 'swingTimer'>[];
-  train?: Omit<SteamTrain, 'wheelPhase'>;
+  trains?: Omit<SteamTrain, 'wheelPhase'>[];
   tnts: Vec2[];
   crates: Vec2[];
   goldSpawns: Vec2[];

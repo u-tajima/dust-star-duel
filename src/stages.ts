@@ -277,13 +277,15 @@ export const STAGES: StageDef[] = [
       { x: 1260, y: 348, w: 220, h: 18, oneWay: true, style: 'wood' },
     ],
     // Roaring Steam Train rolling along Main Street (ride roof at y=656 or dodge cowcatcher!)
-    train: {
-      x: 160,
-      y: 656,
-      w: 220,
-      h: 64,
-      speed: 140,
-    },
+    trains: [
+      {
+        x: 160,
+        y: 656,
+        w: 220,
+        h: 64,
+        speed: 140,
+      },
+    ],
     springs: [
       { x: 465, y: 694, w: 32, h: 26, power: 770 },
       { x: 985, y: 694, w: 32, h: 26, power: 770 },
@@ -333,90 +335,88 @@ export const STAGES: StageDef[] = [
   },
 
   // =========================================================================
-  // 4. SPECIAL: TRAIN (暴走列車) — 5-Car Runaway Steam Express + Fierce Gale!
-  //    Constant desert headwind (-68 px/s), train-car gaps (falling = KO),
-  //    crumbling car hatches, upper baggage racks & coal tender cover
+  // 4. SPECIAL: TRAIN (暴走列車ジャンクション) — 3 Multi-Tier Steam Trains!
+  //    3 full steam trains roaring in opposite directions across 3 railway
+  //    trestle levels (1F right, 2F left, 3F right) + desert gale!
   // =========================================================================
   {
     id: 'train',
     name: 'TRAIN',
     category: 'special',
     bgSrc: './assets/train-bg.jpg',
-    windBase: -68,
+    windBase: -42,
     platforms: [
-      // 5 speeding train car roofs (76px coupler gaps — lethal if you miss!)
-      { x: 0, y: 720, w: 260, h: 60, style: 'brick' },
-      { x: 336, y: 720, w: 260, h: 60, style: 'wood' },
-      { x: 672, y: 720, w: 268, h: 60, style: 'brick' },
-      { x: 1016, y: 720, w: 260, h: 60, style: 'wood' },
-      { x: 1352, y: 720, w: 256, h: 60, style: 'brick' },
+      // Track 1 (1F Railway Bed, y=720) — continuous rail bed for Train #1
+      { x: 0, y: 720, w: 1680, h: 60, style: 'mesa' },
 
-      // Jumpable coal bunkers & iron luggage trunks on car roofs (h=52px)
-      { x: 110, y: 668, w: 46, h: 52, solid: true, style: 'wood' },
-      { x: 780, y: 668, w: 50, h: 52, solid: true, style: 'brick' },
-      { x: 1460, y: 668, w: 46, h: 52, solid: true, style: 'wood' },
+      // Track 2 (2F Trestle Railway, y=628, 92px up) — spans for Train #2 (going LEFT!)
+      { x: 0, y: 628, w: 460, h: 16, oneWay: true, style: 'bridge' },
+      { x: 540, y: 628, w: 500, h: 16, oneWay: true, style: 'bridge' },
+      { x: 1120, y: 628, w: 560, h: 16, oneWay: true, style: 'bridge' },
 
-      // Tier 1 (y=628, 92px up — upper train cupolas & crumbling hatch planks)
-      { x: 60, y: 628, w: 180, h: 18, oneWay: true, style: 'wood' },
-      { x: 265, y: 628, w: 110, h: 16, oneWay: true, style: 'awning', crumble: true },
-      { x: 430, y: 628, w: 200, h: 18, oneWay: true, style: 'wood' },
-      { x: 720, y: 628, w: 200, h: 18, oneWay: true, style: 'bridge' },
-      { x: 960, y: 628, w: 110, h: 16, oneWay: true, style: 'awning', crumble: true },
-      { x: 1110, y: 628, w: 200, h: 18, oneWay: true, style: 'wood' },
-      { x: 1400, y: 628, w: 180, h: 18, oneWay: true, style: 'bridge' },
+      // Track 3 (3F High Iron Trestle, y=536, 92px up) — spans for Train #3 (going RIGHT!)
+      { x: 60, y: 536, w: 420, h: 16, oneWay: true, style: 'bridge' },
+      { x: 580, y: 536, w: 460, h: 16, oneWay: true, style: 'bridge' },
+      { x: 1140, y: 536, w: 480, h: 16, oneWay: true, style: 'bridge' },
 
-      // Tier 2 (y=536, 92px up — swaying overhead signal gantries & catwalks)
-      { x: 170, y: 536, w: 230, h: 16, oneWay: true, style: 'bridge' },
-      { x: 540, y: 536, w: 240, h: 16, oneWay: true, style: 'bridge' },
-      { x: 910, y: 536, w: 230, h: 16, oneWay: true, style: 'bridge' },
-      { x: 1260, y: 536, w: 240, h: 16, oneWay: true, style: 'bridge' },
+      // Tier 4 (y=442, 94px up — signal station catwalks & crumbling planks above tracks)
+      { x: 180, y: 442, w: 220, h: 18, oneWay: true, style: 'wood' },
+      { x: 520, y: 442, w: 130, h: 16, oneWay: true, style: 'awning', crumble: true },
+      { x: 740, y: 442, w: 240, h: 18, oneWay: true, style: 'wood' },
+      { x: 1090, y: 442, w: 130, h: 16, oneWay: true, style: 'awning', crumble: true },
+      { x: 1310, y: 442, w: 220, h: 18, oneWay: true, style: 'wood' },
 
-      // Tier 3 (y=442, 94px up — high iron signal bridges)
-      { x: 350, y: 442, w: 220, h: 16, oneWay: true, style: 'bridge' },
-      { x: 740, y: 442, w: 210, h: 16, oneWay: true, style: 'bridge' },
-      { x: 1130, y: 442, w: 220, h: 16, oneWay: true, style: 'bridge' },
+      // Tier 5 (y=348, 94px up — top water-tower & signal lookout decks)
+      { x: 350, y: 348, w: 210, h: 16, oneWay: true, style: 'wood' },
+      { x: 1120, y: 348, w: 210, h: 16, oneWay: true, style: 'wood' },
+    ],
+    // 3 roaring Steam Trains on 3 stacked railway levels!
+    trains: [
+      { x: 100, y: 656, w: 220, h: 64, speed: 175 },
+      { x: 960, y: 564, w: 220, h: 64, speed: -160 },
+      { x: 520, y: 472, w: 220, h: 64, speed: 185 },
     ],
     springs: [
-      { x: 18, y: 694, w: 32, h: 26, power: 760 },
-      { x: 688, y: 694, w: 32, h: 26, power: 760 },
-      { x: 1368, y: 694, w: 32, h: 26, power: 760 },
+      { x: 30, y: 694, w: 32, h: 26, power: 770 },
+      { x: 820, y: 694, w: 32, h: 26, power: 770 },
+      { x: 1590, y: 694, w: 32, h: 26, power: 770 },
     ],
     doors: [],
     tnts: [
-      { x: 465, y: 720 },
-      { x: 1145, y: 720 },
-      { x: 845, y: 442 },
+      { x: 290, y: 442 },
+      { x: 860, y: 442 },
+      { x: 1420, y: 442 },
     ],
     crates: [
-      { x: 285, y: 536 },
-      { x: 1025, y: 536 },
+      { x: 455, y: 348 },
+      { x: 1225, y: 348 },
     ],
     goldSpawns: [
-      { x: 460, y: 402 },
-      { x: 845, y: 402 },
-      { x: 1240, y: 402 },
-      { x: 285, y: 496 },
-      { x: 660, y: 496 },
-      { x: 1025, y: 496 },
+      { x: 455, y: 308 },
+      { x: 1225, y: 308 },
+      { x: 290, y: 402 },
+      { x: 860, y: 402 },
+      { x: 1420, y: 402 },
+      { x: 270, y: 496 },
+      { x: 810, y: 496 },
       { x: 1380, y: 496 },
-      { x: 150, y: 588 },
-      { x: 820, y: 588 },
-      { x: 1490, y: 588 },
+      { x: 585, y: 588 },
+      { x: 1155, y: 588 },
     ],
     coinSpawns: [
-      { x: 150, y: 598 },
-      { x: 530, y: 598 },
-      { x: 820, y: 598 },
-      { x: 1210, y: 598 },
-      { x: 1490, y: 598 },
-      { x: 285, y: 506 },
-      { x: 660, y: 506 },
-      { x: 1025, y: 506 },
-      { x: 460, y: 412 },
-      { x: 1240, y: 412 },
+      { x: 230, y: 598 },
+      { x: 790, y: 598 },
+      { x: 1350, y: 598 },
+      { x: 270, y: 506 },
+      { x: 810, y: 506 },
+      { x: 1380, y: 506 },
+      { x: 585, y: 412 },
+      { x: 1155, y: 412 },
+      { x: 455, y: 318 },
+      { x: 1225, y: 318 },
     ],
-    p1Spawn: { x: 180, y: 660 },
-    p2Spawn: { x: 1140, y: 660 },
+    p1Spawn: { x: 260, y: 390 },
+    p2Spawn: { x: 1400, y: 390 },
   },
 
   // =========================================================================

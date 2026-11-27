@@ -60,7 +60,7 @@ export class GameEngine {
   public platforms: Platform[] = [];
   public springs: SpringBarrel[] = [];
   public doors: WarpDoor[] = [];
-  public train: SteamTrain | null = null;
+  public trains: SteamTrain[] = [];
   public tnts: TntBarrel[] = [];
   public crates: WeaponCrate[] = [];
   public fighters: [Fighter, Fighter];
@@ -161,7 +161,7 @@ export class GameEngine {
       ...d,
       swingTimer: 0,
     }));
-    this.train = def.train ? { ...def.train, wheelPhase: 0 } : null;
+    this.trains = (def.trains ?? []).map((t) => ({ ...t, wheelPhase: 0 }));
     this.tnts = def.tnts.map((pt) => ({
       x: pt.x - 16,
       y: pt.y - 34,
@@ -238,7 +238,7 @@ export class GameEngine {
       springs: this.springs.map((s) => ({ bounceTimer: s.bounceTimer })),
       platforms: this.platforms.map((p) => ({ x: p.x, y: p.y, crumbleState: p.crumbleState })),
       doors: this.doors.map((d) => ({ swingTimer: d.swingTimer })),
-      train: this.train ? { x: this.train.x, wheelPhase: this.train.wheelPhase } : null,
+      trains: this.trains.map((t) => ({ x: t.x, wheelPhase: t.wheelPhase })),
     };
   }
 
@@ -281,10 +281,12 @@ export class GameEngine {
     snap.doors?.forEach((d, i) => {
       if (this.doors[i]) this.doors[i].swingTimer = d.swingTimer;
     });
-    if (this.train && snap.train) {
-      this.train.x = snap.train.x;
-      this.train.wheelPhase = snap.train.wheelPhase;
-    }
+    snap.trains?.forEach((t, i) => {
+      if (this.trains[i]) {
+        this.trains[i].x = t.x;
+        this.trains[i].wheelPhase = t.wheelPhase;
+      }
+    });
 
     this.updateCamera(Math.min(dt, 0.04));
   }
@@ -371,14 +373,15 @@ export class GameEngine {
       if (d.swingTimer > 0) d.swingTimer = Math.max(0, d.swingTimer - clampedDt);
     }
 
-    if (this.train) {
-      this.train.x = wrapX(this.train.x + this.train.speed * clampedDt);
-      this.train.wheelPhase += clampedDt * 12;
-      if (Math.random() < 0.25) {
+    for (const tr of this.trains) {
+      tr.x = wrapX(tr.x + tr.speed * clampedDt);
+      tr.wheelPhase += clampedDt * 12 * Math.sign(tr.speed || 1);
+      if (Math.random() < 0.22) {
+        const stackX = tr.speed >= 0 ? tr.x + tr.w - 30 : tr.x + 30;
         this.particles.push({
-          x: wrapX(this.train.x + this.train.w - 30),
-          y: this.train.y - 12,
-          vx: -25 + (Math.random() - 0.5) * 20,
+          x: wrapX(stackX),
+          y: tr.y - 12,
+          vx: -Math.sign(tr.speed || 1) * 30 + (Math.random() - 0.5) * 20,
           vy: -55 - Math.random() * 35,
           size: 5 + Math.random() * 4,
           life: 0.55,
@@ -605,9 +608,8 @@ export class GameEngine {
       }
     }
 
-    // Steam Train interaction: rideable roof + hazardous locomotive front!
-    if (this.train) {
-      const tr = this.train;
+    // Steam Trains interaction: rideable roofs + directional locomotive knockback!
+    for (const tr of this.trains) {
       const trCenter = wrapX(tr.x + tr.w * 0.5);
       const dx = wrapDeltaX(trCenter, f.x);
       if (Math.abs(dx) < tr.w * 0.5 + f.w * 0.4) {
@@ -617,10 +619,10 @@ export class GameEngine {
           f.vy = 0;
           f.onGround = true;
           f.x = wrapX(f.x + tr.speed * dt);
-        } else if (f.y + f.h * 0.45 > tr.y + 8 && f.y - f.h * 0.45 < tr.y + tr.h) {
+        } else if (f.y + f.h * 0.45 > tr.y + 10 && f.y - f.h * 0.45 < tr.y + tr.h) {
           // Struck by locomotive body/cowcatcher!
           if (f.invulnTimer <= 0) {
-            this.damageFighter(f, 1, 1, 380);
+            this.damageFighter(f, 1, Math.sign(tr.speed) || 1, 380);
             f.vy = -340;
           }
         }
